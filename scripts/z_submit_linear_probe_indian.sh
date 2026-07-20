@@ -6,9 +6,9 @@ cd "${SCRIPT_DIR}"
 
 DATASET="${DATASET:-Indian}"
 SEED="${SEED:-0}"
-SPLIT_DIR="${SPLIT_DIR:-/home/dk6012/Desktop/darpa_ai/data/splits}"
+SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
 DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/${DATASET}_stratified_80_20_seed${SEED}.mat}"
-PRETRAIN_DIR="${PRETRAIN_DIR:-/home/dk6012/Desktop/darpa_ai/hypersl/modelarchive/${DATASET,,}_mae_aug}"
+PRETRAIN_DIR="${PRETRAIN_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
 CHECKPOINT="${CHECKPOINT:-${PRETRAIN_DIR}/embed128_enc8_dec8_heads8_mask75_epoch300.pt}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-LinearProbeAug}"

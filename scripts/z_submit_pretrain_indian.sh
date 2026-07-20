@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CUDA_VISIBLE_DEVICES=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HYPERSL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${HYPERSL_DIR}"
 
-DATASET="${DATASET:-Indian}"
+DATASET="${DATASET:-IndianPine}"
 SEED="${SEED:-0}"
-SPLIT_DIR="${SPLIT_DIR:-/home/dk6012/Desktop/darpa_ai/data/splits}"
-DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/augmented/${DATASET}_stratified_80_20_seed${SEED}_pretrain_C_plus_D.mat}"
-OUTPUT_DIR="${OUTPUT_DIR:-/home/dk6012/Desktop/darpa_ai/hypersl/modelarchive/${DATASET,,}_mae_aug}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+# DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/augmented/${DATASET}_stratified_80_20_seed${SEED}_pretrain_C_plus_D.mat}"
+OUTPUT_DIR="${OUTPUT_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
 WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-Aug}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_pretrain_aug_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"

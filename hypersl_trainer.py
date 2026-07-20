@@ -14,7 +14,12 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, Dataset
 from engine.loss import MSE_SAM_loss
 from engine.model import SpectralSharedEncoder
+import wandb
 
+
+WANDB_KEY = "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"
+
+wandb.login(key = WANDB_KEY)
 
 class NullSummaryWriter:
     def add_scalar(self, *args, **kwargs):
@@ -124,7 +129,7 @@ def build_argparser():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--wandb-project", "--wandb_project", dest="wandb_project", default="HyperSL")
-    parser.add_argument("--wandb-entity", "--wandb_entity", dest="wandb_entity", default="dk6012")
+    parser.add_argument("--wandb-entity", "--wandb_entity", dest="wandb_entity", default="lxdcis-rochester-institute-of-technology")
     parser.add_argument("--wandb-run-name", "--wandb_run_name", dest="wandb_run_name", default="")
     parser.add_argument("--wandb-mode", "--wandb_mode", dest="wandb_mode", choices=["online", "offline", "disabled"], default="online")
     return parser
