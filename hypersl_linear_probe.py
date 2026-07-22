@@ -309,7 +309,7 @@ def build_argparser():
     parser.add_argument("--max-test-batches", type=int, default=None)
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--wandb-project", "--wandb_project", dest="wandb_project", default="HyperSL")
-    parser.add_argument("--wandb-entity", "--wandb_entity", dest="wandb_entity", default="lxdcis")
+    parser.add_argument("--wandb-entity", "--wandb_entity", dest="wandb_entity", default="lxdcis-rochester-institute-of-technology")
     parser.add_argument("--wandb-run-name", "--wandb_run_name", dest="wandb_run_name", default="")
     parser.add_argument("--wandb-mode", "--wandb_mode", dest="wandb_mode", choices=["online", "offline", "disabled"], default="online")
     return parser
