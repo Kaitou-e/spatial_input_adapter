@@ -17,7 +17,7 @@ DEVICE="${DEVICE:-auto}"
 DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
 # SPLIT_DIR="${SPLIT_DIR:-${REPO_ROOT}/data/splits}"
 # DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/${DATASET}_stratified_80_20_seed${SEED}.mat}"
-CHECKPOINT="${CHECKPOINT:-${REPO_ROOT}/hypersl/modelarchive/${DATASET,,}_mae_aug/embed${EMBEDDING_DIM}_enc${ENCODER_DEPTH}_dec${DECODER_DEPTH}_heads${NUM_HEADS}_mask${MASK_PCT}_epoch${EPOCH}.pt}"
+# CHECKPOINT="${CHECKPOINT:-${REPO_ROOT}/hypersl/modelarchive/${DATASET,,}_mae_aug/embed${EMBEDDING_DIM}_enc${ENCODER_DEPTH}_dec${DECODER_DEPTH}_heads${NUM_HEADS}_mask${MASK_PCT}_epoch${EPOCH}.pt}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/indianpine_mae_aug/embed128_enc8_dec8_heads8_mask75_epoch300.pt"
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/reports/hypersl/${DATASET,,}_embed${EMBEDDING_DIM}_epoch${EPOCH}_seed${SEED}}"
 

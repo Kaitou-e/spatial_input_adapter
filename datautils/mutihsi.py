@@ -233,45 +233,45 @@ class MultisourceHSIDataset(Dataset):
 
 
 if __name__ == '__main__':
-    MHSIs = MultisourceHSI(root=r'E:\data\test', dest='../MultiSourceHSI_test.hdf5')
+    MHSIs = MultisourceHSI(root='/data/', dest='MultiSourceHSI_test.hdf5')
     MHSIs.create()
     # hsi = MHSIs.read_DESIS(
     #     r'../clfdata\DESIS\DESIS-HSI-L2A-DT0625231248_007-20230625T124701-V0220\DESIS-HSI-L2A-DT0625231248_007-20230625T124701-V0220-')
     # img_rgb = hsi[:, :, :3]
     # plt.imshow(img_rgb)
     # plt.show()
-    # GF5_dataset = MultisourceHSIDataset(MHSIs, source='GF5')
-    # EnMap_dataset = MultisourceHSIDataset(MHSIs, source='ENMap')
-    # DESIS_dataset = MultisourceHSIDataset(MHSIs, source='DESIS')
-    # EnMap_dataset.__getitem__(10000)
-    # GF5_dataloader = DataLoader(GF5_dataset, batch_size=2048, shuffle=True, pin_memory=True, num_workers=0)
-    # EnMap_dataloader = DataLoader(EnMap_dataset, batch_size=4096, shuffle=True, pin_memory=True, num_workers=0)
-    # DESIS_dataloader = DataLoader(DESIS_dataset, batch_size=4096, shuffle=True, pin_memory=True, num_workers=0)
-    #
+    GF5_dataset = MultisourceHSIDataset(MHSIs, source='GF5')
+    EnMap_dataset = MultisourceHSIDataset(MHSIs, source='ENMap')
+    DESIS_dataset = MultisourceHSIDataset(MHSIs, source='DESIS')
+    EnMap_dataset.__getitem__(10000)
+    GF5_dataloader = DataLoader(GF5_dataset, batch_size=2048, shuffle=True, pin_memory=True, num_workers=0)
+    EnMap_dataloader = DataLoader(EnMap_dataset, batch_size=4096, shuffle=True, pin_memory=True, num_workers=0)
+    DESIS_dataloader = DataLoader(DESIS_dataset, batch_size=4096, shuffle=True, pin_memory=True, num_workers=0)
+    
 
-    # GF5_dataloader_cycle = cycle(GF5_dataloader)
-    # EnMap_dataloader_cycle = cycle(EnMap_dataloader)
-    # DESIS_dataloader_cycle = cycle(DESIS_dataloader)
-    # n = 0
-    # start_time = time.time()
-    # for (enmap_s, enmap_w), (desis_s, desis_w) in zip(EnMap_dataloader, DESIS_dataloader):
-    #     n += 1
-    #     print(f'reading {n}')
-    #     if torch.isnan(torch.sum(enmap_s)) or torch.isnan(torch.sum(desis_s)):
-    #         print('Nan Data')
-    #         break
-    # end_time = time.time()
-    # print(f'{end_time - start_time}s')  # 8 worker 5319s, 16 worker 5392s
-    # print(max(len(EnMap_dataloader), len(DESIS_dataloader)))
+    GF5_dataloader_cycle = cycle(GF5_dataloader)
+    EnMap_dataloader_cycle = cycle(EnMap_dataloader)
+    DESIS_dataloader_cycle = cycle(DESIS_dataloader)
+    n = 0
+    start_time = time.time()
+    for (enmap_s, enmap_w), (desis_s, desis_w) in zip(EnMap_dataloader, DESIS_dataloader):
+        n += 1
+        print(f'reading {n}')
+        if torch.isnan(torch.sum(enmap_s)) or torch.isnan(torch.sum(desis_s)):
+            print('Nan Data')
+            break
+    end_time = time.time()
+    print(f'{end_time - start_time}s')  # 8 worker 5319s, 16 worker 5392s
+    print(max(len(EnMap_dataloader), len(DESIS_dataloader)))
 
-    # en_iter=iter(EnMap_dataloader)
-    # de_iter=iter(DESIS_dataloader)
-    # start_time = time.time()
-    # for _ in range(min(len(EnMap_dataloader), len(DESIS_dataloader))):
-    #     en_S = EnMap_dataloader.__iter__().__next__()
-    #     de_S = DESIS_dataloader.__iter__().__next__()
-    #     n += 1
-    #     print(f'reading {n}')
-    # end_time = time.time()
-    # print(f'{end_time - start_time}s')  # 292.146680355072s
+    en_iter=iter(EnMap_dataloader)
+    de_iter=iter(DESIS_dataloader)
+    start_time = time.time()
+    for _ in range(min(len(EnMap_dataloader), len(DESIS_dataloader))):
+        en_S = EnMap_dataloader.__iter__().__next__()
+        de_S = DESIS_dataloader.__iter__().__next__()
+        n += 1
+        print(f'reading {n}')
+    end_time = time.time()
+    print(f'{end_time - start_time}s')  # 292.146680355072s
     a = 0

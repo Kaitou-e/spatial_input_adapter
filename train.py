@@ -31,7 +31,7 @@ if __name__ == '__main__':
     resume = True
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    MHSIs = MultisourceHSI(dest='./data/MultiSourceHSI.hdf5')
+    MHSIs = MultisourceHSI(dest='./MultiSourceHSI.hdf5')
     EnMap_dataset = MultisourceHSIDataset(MHSIs, source='ENMap')
     DESIS_dataset = MultisourceHSIDataset(MHSIs, source='DESIS')
     EnMap_dataloader = DataLoader(EnMap_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=8)

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CUDA_VISIBLE_DEVICES=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
@@ -10,7 +11,7 @@ SEED="${SEED:-0}"
 DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
 # DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/${DATASET}_stratified_80_20_seed${SEED}.mat}"
 PRETRAIN_DIR="${PRETRAIN_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
-CHECKPOINT="${CHECKPOINT:-${PRETRAIN_DIR}/embed128_enc8_dec8_heads8_mask75_epoch300.pt}"
+CHECKPOINT="${CHECKPOINT:-${PRETRAIN_DIR}/embed128_enc8_dec8_heads8_mask80_epoch200.pt}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-LinearProbeAug}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_linear_probe_aug_seed${SEED}}"
@@ -46,6 +47,7 @@ python hypersl_linear_probe.py \
   --lr 1e-3 \
   --weight-decay 1e-4 \
   --split-seed "${SEED}" \
+  # --train-ratio 0.8 \
   --eval-every 10 \
   --linear-probe \
   --wandb \

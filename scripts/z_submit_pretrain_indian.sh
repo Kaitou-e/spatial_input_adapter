@@ -8,7 +8,8 @@ cd "${HYPERSL_DIR}"
 
 DATASET="${DATASET:-IndianPine}"
 SEED="${SEED:-0}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+DATA_PATH="/home/lxdcis/hypersl_training/data/MultiSourceHSI_test.hdf5"
 # DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/augmented/${DATASET}_stratified_80_20_seed${SEED}_pretrain_C_plus_D.mat}"
 OUTPUT_DIR="${OUTPUT_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
 WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-Aug}"
@@ -28,16 +29,16 @@ python hypersl_trainer.py \
   --data-path "${DATA_PATH}" \
   --output-dir "${OUTPUT_DIR}" \
   --split all \
-  --epochs 300 \
+  --epochs 3 \
   --batch-size 128 \
   --lr 5e-4 \
   --weight-decay 5e-5 \
   --mask-ratio 0.75 \
   --embedding-dim 128 \
   --encoder-depth 8 \
-  --decoder-depth 8 \
+  --decoder-depth 4 \
   --num-heads 8 \
-  --num-workers 0 \
+  --num-workers 8 \
   --seed "${SEED}" \
   --disable-tensorboard \
   --wandb \
