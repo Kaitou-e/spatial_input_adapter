@@ -209,7 +209,7 @@ if __name__ == '__main__':
             )
         
         # save model
-        if epoch % 10 == 0:
+        if epoch % 5 == 0:
             # save checkpoint
             to_save = {
                 'epoch':epoch,
