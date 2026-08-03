@@ -89,7 +89,7 @@ def split_train_test(data, label, patch_size, ratio):
 
 def read_indian_pines(data_path, label_path, wave_path):
 
-    remove_bands = list(range(103, 108)) + list(range(149, 163)) + [119]
+    remove_bands = list(range(103, 108)) + list(range(149, 163)) + [219]
     hsi = loadmat(data_path)['input']
     gt = loadmat(label_path)['indian_pines_gt']
     W, H, C = hsi.shape

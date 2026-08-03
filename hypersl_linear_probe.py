@@ -18,7 +18,7 @@ from engine.classification import ClassificationModel
 
 warnings.filterwarnings("ignore")
 
-INDIAN_PINES_REMOVED_BANDS = list(range(103, 108)) + list(range(149, 163)) + [119]
+INDIAN_PINES_REMOVED_BANDS = list(range(103, 108)) + list(range(149, 163)) + [219]
 
 
 class HyperDataset(Dataset):
@@ -242,10 +242,11 @@ def evaluate(model, loader, device, class_num, max_batches=None):
 
 
 def default_wandb_run_name(args):
-    probe_type = "linear_probe" if args.linear_probe else "finetune"
+    head_type = "linear" if args.linear_probe else args.head_type
+    encoder_mode = "frozen" if (args.linear_probe or args.freeze_encoder) else "finetune"
     split_tag = f"ratio{args.train_ratio:g}" if args.train_ratio is not None else "packaged_split"
     return (
-        f"hypersl_{probe_type}_{args.model_size}_"
+        f"hypersl_{head_type}_{encoder_mode}_{args.model_size}_"
         f"p{args.patch_size}_{split_tag}_seed{args.seed}"
     )
 
@@ -304,7 +305,27 @@ def build_argparser():
     parser.add_argument("--grad-accum-steps", type=int, default=1)
     parser.add_argument("--disable-amp", action="store_true")
     parser.add_argument("--use-checkpointing", action="store_true")
-    parser.add_argument("--linear-probe", action="store_true")
+    parser.add_argument(
+        "--head-type",
+        choices=["linear", "cnn", "local_attention"],
+        default="cnn",
+        help="Downstream head applied after per-pixel HyperSL embeddings.",
+    )
+    parser.add_argument(
+        "--linear-probe",
+        action="store_true",
+        help="Legacy shortcut for --head-type linear --freeze-encoder.",
+    )
+    parser.add_argument(
+        "--freeze-encoder",
+        action="store_true",
+        help="Freeze HyperSL while training the selected downstream head.",
+    )
+    parser.add_argument("--encoder-lr", type=float, default=None)
+    parser.add_argument("--spatial-depth", type=int, default=2)
+    parser.add_argument("--spatial-heads", type=int, default=4)
+    parser.add_argument("--spatial-mlp-ratio", type=float, default=4.0)
+    parser.add_argument("--spatial-dropout", type=float, default=0.1)
     parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-test-batches", type=int, default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -359,14 +380,26 @@ def main():
     train_loader = DataLoader(train_dataset,batch_size=args.batch_size,shuffle=True,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
     test_loader = DataLoader(test_dataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
 
-    model = ClassificationModel(class_num=class_num,
-                                model_size=args.model_size,
-                                embedding_dim=args.embedding_dim,
-                                encoder_depth=args.encoder_depth,
-                                decoder_depth=args.decoder_depth,
-                                num_heads=args.num_heads,
-                                use_checkpointing=args.use_checkpointing,
-                                linear_probe=args.linear_probe,).to(device)
+    effective_head_type = "linear" if args.linear_probe else args.head_type
+    freeze_encoder = args.linear_probe or args.freeze_encoder
+    if effective_head_type == "local_attention" and args.patch_size == 1:
+        raise ValueError("local_attention requires --patch-size greater than 1.")
+
+    model = ClassificationModel(
+        class_num=class_num,
+        model_size=args.model_size,
+        embedding_dim=args.embedding_dim,
+        encoder_depth=args.encoder_depth,
+        decoder_depth=args.decoder_depth,
+        num_heads=args.num_heads,
+        use_checkpointing=args.use_checkpointing,
+        head_type=effective_head_type,
+        patch_size=args.patch_size,
+        spatial_depth=args.spatial_depth,
+        spatial_heads=args.spatial_heads,
+        spatial_mlp_ratio=args.spatial_mlp_ratio,
+        spatial_dropout=args.spatial_dropout,
+    ).to(device)
 
     if args.checkpoint:
         missing_keys, unexpected_keys = load_pretrained_encoder(model, args.checkpoint)
@@ -375,11 +408,16 @@ def main():
             f"Missing keys: {len(missing_keys)}, Unexpected keys: {len(unexpected_keys)}"
         )
 
-    if args.linear_probe:
+    if freeze_encoder:
         model.freeze_encoder()
-        print("Running in linear-probe mode: encoder frozen, training linear classifier only.")
+        print(
+            f"Running with frozen HyperSL encoder and {effective_head_type} head. "
+            "Only the downstream head is trainable."
+        )
     else:
-        print("Running in fine-tuning mode: encoder and classifier are trainable.")
+        print(
+            f"Running end-to-end fine-tuning with {effective_head_type} head."
+        )
 
     trainable_params = [param for param in model.parameters() if param.requires_grad]
     total_params = sum(param.numel() for param in model.parameters())
@@ -387,8 +425,27 @@ def main():
     print(f"Total parameters: {total_params}")
     print(f"Trainable parameters: {trainable_count}")
 
-    optimizer = torch.optim.AdamW(trainable_params,lr=args.lr,weight_decay=args.weight_decay)
-    
+    if not freeze_encoder and args.encoder_lr is not None:
+        encoder_params = [
+            param for param in model.spectral_encoder.parameters() if param.requires_grad
+        ]
+        head_params = [
+            param
+            for name, param in model.named_parameters()
+            if param.requires_grad and not name.startswith("spectral_encoder.")
+        ]
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": encoder_params, "lr": args.encoder_lr},
+                {"params": head_params, "lr": args.lr},
+            ],
+            weight_decay=args.weight_decay,
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            trainable_params, lr=args.lr, weight_decay=args.weight_decay
+        )
+
     criterion = torch.nn.CrossEntropyLoss()
     scaler = GradScaler(device.type, enabled=use_amp)
 

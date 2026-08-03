@@ -220,3 +220,5 @@ __marimo__/
 wandb/
 MultiSourceHSI_test.hdf5
 hypersl_code.zip
+
+10_base_mask95_checkpoint.pt
