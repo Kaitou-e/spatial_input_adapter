@@ -1,7 +1,10 @@
+from __future__ import annotations
 import torch
 from torch import nn
 import torch.nn.functional as F
 
+import torch
+from torch import nn, Tensor
 from .model import SpectralSharedEncoder
 
 
@@ -84,6 +87,137 @@ class SpatialTransformerHead(nn.Module):
         return self.classifier(fused)
 
 
+
+class SharedSpatialInputAdapter(nn.Module):
+    """
+    Produces one locality-aware spectrum from an odd-sized spatial patch.
+
+    The same spatial weights are applied independently to every spectral
+    band. Spectral bands are never mixed with one another.
+
+    Input:
+        x: [batch, height, width, bands]
+
+    Output:
+        adapted_spectrum: [batch, bands]
+    """
+
+    def __init__(
+        self,
+        patch_size: int,
+        initial_mix: float = 0.02,
+    ) -> None:
+        super().__init__()
+
+        if patch_size <= 1:
+            raise ValueError(
+                "SharedSpatialInputAdapter requires patch_size > 1."
+            )
+
+        if patch_size % 2 == 0:
+            raise ValueError(
+                "patch_size must be odd so the patch has a center."
+            )
+
+        if not 0.0 < initial_mix < 1.0:
+            raise ValueError(
+                "initial_mix must be strictly between 0 and 1."
+            )
+
+        self.patch_size = patch_size
+        self.num_pixels = patch_size * patch_size
+        self.center_index = self.num_pixels // 2
+
+        # Store the flattened indices of every pixel except the center.
+        neighbor_indices = [
+            index
+            for index in range(self.num_pixels)
+            if index != self.center_index
+        ]
+
+        self.register_buffer(
+            "neighbor_indices",
+            torch.tensor(neighbor_indices, dtype=torch.long),
+            persistent=False,
+        )
+
+        # One learned scalar per relative neighbor location.
+        # Softmax converts these into nonnegative weights summing to one.
+        self.neighbor_logits = nn.Parameter(
+            torch.zeros(self.num_pixels - 1)
+        )
+
+        # alpha = sigmoid(mix_logit).
+        #
+        # Initialize alpha near zero so training begins close to the
+        # original center-pixel HyperSL linear probe.
+        initial_mix_tensor = torch.tensor(
+            initial_mix,
+            dtype=torch.float32,
+        )
+
+        initial_logit = torch.log(
+            initial_mix_tensor / (1.0 - initial_mix_tensor)
+        )
+
+        self.mix_logit = nn.Parameter(initial_logit)
+
+    def forward(self, x: Tensor) -> Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                "Expected x with shape [batch, height, width, bands], "
+                f"but received {tuple(x.shape)}."
+            )
+
+        batch, height, width, bands = x.shape
+
+        if height != self.patch_size or width != self.patch_size:
+            raise ValueError(
+                f"Expected a {self.patch_size}x{self.patch_size} patch, "
+                f"but received {height}x{width}."
+            )
+
+        # [B, H*W, C]
+        flattened = x.reshape(
+            batch,
+            self.num_pixels,
+            bands,
+        )
+
+        # [B, C]
+        center = flattened[:, self.center_index, :]
+
+        # [B, H*W-1, C]
+        neighbors = flattened.index_select(
+            dim=1,
+            index=self.neighbor_indices,
+        )
+
+        # [H*W-1]
+        spatial_weights = torch.softmax(
+            self.neighbor_logits,
+            dim=0,
+        )
+
+        # Fixed across spectral bands:
+        # [B, H*W-1, C] × [1, H*W-1, 1] -> [B, C]
+        neighborhood_spectrum = (
+            neighbors
+            * spatial_weights.view(1, -1, 1)
+        ).sum(dim=1)
+
+        # Scalar constrained to [0, 1].
+        mix = torch.sigmoid(self.mix_logit)
+
+        # Residual interpolation keeps the adapter close to the
+        # original center spectrum unless locality proves useful.
+        adapted_spectrum = (
+            center
+            + mix * (neighborhood_spectrum - center)
+        )
+
+        return adapted_spectrum
+
 class ClassificationModel(nn.Module):
     def __init__(
         self,
@@ -111,6 +245,7 @@ class ClassificationModel(nn.Module):
         if linear_probe:
             head_type = "linear"
         self.head_type = head_type
+        self.patch_size = patch_size
 
         presets = {
             "small": dict(embedding_dim=256, encoder_depth=8, decoder_depth=4, num_heads=8),
@@ -174,9 +309,19 @@ class ClassificationModel(nn.Module):
                 mlp_ratio=spatial_mlp_ratio,
                 dropout=spatial_dropout,
             )
+        elif self.head_type == "input_adapter_linear":
+            self.input_adapter = SharedSpatialInputAdapter(
+                patch_size=patch_size,
+                initial_mix=0.02,
+            )
+
+            self.classifier = nn.Linear(
+                self.embedding_dim,
+                class_num,
+            )
         else:
             raise ValueError(
-                "head_type must be one of {'linear', 'cnn', 'local_attention'}, "
+                "head_type must be one of {'linear', 'cnn', 'local_attention', 'input_adapter_linear'}, "
                 f"got {self.head_type!r}."
             )
 
@@ -194,22 +339,81 @@ class ClassificationModel(nn.Module):
 
     def encode_patch(self, x, wavelength):
         """Return one fixed-dimensional HyperSL embedding per pixel."""
-        if self.encoder_frozen:
-            with torch.no_grad():
-                z, _, _, _, _, shape = self.spectral_encoder.encoder_forward(
-                    x, wavelength, 0.0
-                )
-        else:
-            z, _, _, _, _, shape = self.spectral_encoder.encoder_forward(
-                x, wavelength, 0.0
-            )
+        # if self.encoder_frozen:
+        #     with torch.no_grad():
+        #         z, _, _, _, _, shape = self.spectral_encoder.encoder_forward(
+        #             x, wavelength, 0.0
+        #         )
+        # else:
+        #     z, _, _, _, _, shape = self.spectral_encoder.encoder_forward(
+        #         x, wavelength, 0.0
+        #     )
+        z, _, _, _, _, shape = self.spectral_encoder.encoder_forward(
+            x, wavelength, 0.0
+        )
 
         batch, height, width, _ = shape
         # z is [B*H*W, 1, D]. Restore the spatial arrangement.
         feature_map = z.reshape(batch, height, width, self.embedding_dim)
         return feature_map.permute(0, 3, 1, 2).contiguous()
 
-    def forward(self, x, wavelength):
+    # def forward(self, x, wavelength):
+    def forward(
+        self,
+        x: torch.Tensor,
+        wavelength: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                "Expected [B, H, W, C], "
+                f"received {tuple(x.shape)}."
+            )
+
+        batch, height, width, bands = x.shape
+
+        if height != self.patch_size or width != self.patch_size:
+            raise ValueError(
+                f"Expected spatial shape "
+                f"{self.patch_size}x{self.patch_size}, "
+                f"received {height}x{width}."
+            )
+
+        if wavelength is not None:
+            expected_bands = wavelength.shape[-1]
+
+            if bands != expected_bands:
+                raise ValueError(
+                    "Input does not appear to be [B, H, W, C]. "
+                    f"Last input dimension is {bands}, but wavelength "
+                    f"dimension is {expected_bands}. "
+                    f"Full input shape: {tuple(x.shape)}."
+                )
+        
+        if self.head_type == "input_adapter_linear":
+            # x is [B, H, W, C].
+            #
+            # The adapter reduces the spatial patch to one spectrum
+            # while retaining the original number and ordering of bands.
+            # print(x.shape)
+            adapted_spectrum = self.input_adapter(x)  # [B, C]
+            # print(adapted_spectrum.shape)
+
+            # Reintroduce 1x1 spatial dimensions because encode_patch()
+            # expects a spatial-spectral patch.
+            adapted_patch = adapted_spectrum[:, None, None, :]
+            # print(adapted_patch.shape)
+            # exit()
+            # Frozen HyperSL produces a [B, D, 1, 1] feature map.
+            feature_map = self.encode_patch(
+                adapted_patch,
+                wavelength,
+            )
+
+            features = feature_map.flatten(1)  # [B, D]
+
+            return self.classifier(features)
+
+        # Existing linear/CNN/local-attention cases follow here.
         feature_map = self.encode_patch(x, wavelength)
 
         if self.head_type == "linear":

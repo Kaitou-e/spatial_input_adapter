@@ -16,7 +16,7 @@ CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_ch
 WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-LinearProbeLoc}"
-WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_loc_smaller_seed${SEED}}"
+WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_input_adapter_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
 
@@ -121,6 +121,32 @@ fi
 #   "${WANDB_ENTITY_ARGS[@]}"
 
 # LINEAR CLASSIFIER
+# python hypersl_linear_probe.py \
+#   --checkpoint "$CHECKPOINT" \
+#   --data-path "$DATA_PATH" \
+#   --wavelengths-path "$WAVELENGTHS_PATH" \
+#   --model-size small \
+#   --embedding-dim 256 \
+#   --encoder-depth 8 \
+#   --decoder-depth 4 \
+#   --num-heads 8 \
+#   --head-type linear \
+#   --freeze-encoder \
+#   --patch-size 1 \
+#   --epochs 400 \
+#   --eval-every 10 \
+#   --batch-size 4 \
+#   --test-batch-size 16 \
+#   --grad-accum-steps 8 \
+#   --lr 3e-4 \
+#   --weight-decay 1e-4 \
+#   --wandb \
+#   --wandb-project "${WANDB_PROJECT}" \
+#   --wandb-run-name "${WANDB_RUN_NAME}" \
+#   --wandb-mode "${WANDB_MODE}" \
+#   "${WANDB_ENTITY_ARGS[@]}"
+
+# linear input adapter + linear probe ------------------
 python hypersl_linear_probe.py \
   --checkpoint "$CHECKPOINT" \
   --data-path "$DATA_PATH" \
@@ -130,10 +156,10 @@ python hypersl_linear_probe.py \
   --encoder-depth 8 \
   --decoder-depth 4 \
   --num-heads 8 \
-  --head-type linear_center_mean \
+  --head-type input_adapter_linear \
   --freeze-encoder \
-  --patch-size 1 \
-  --epochs 200 \
+  --patch-size 7 \
+  --epochs 400 \
   --eval-every 10 \
   --batch-size 4 \
   --test-batch-size 16 \
@@ -145,8 +171,6 @@ python hypersl_linear_probe.py \
   --wandb-run-name "${WANDB_RUN_NAME}" \
   --wandb-mode "${WANDB_MODE}" \
   "${WANDB_ENTITY_ARGS[@]}"
-
-
 
 
 # Original CNN 

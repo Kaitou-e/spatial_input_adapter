@@ -153,6 +153,7 @@ def load_pretrained_encoder(model, checkpoint_path):
 
 def run_epoch(model, loader, optimizer, criterion, device, max_batches=None):
     model.train()
+    model.spectral_encoder.eval() # REMEMBER TO DEELTE THIS AFTER TEST!!!!!!!!!!!!!
     losses = []
     correct = 0
     total = 0
@@ -307,7 +308,7 @@ def build_argparser():
     parser.add_argument("--use-checkpointing", action="store_true")
     parser.add_argument(
         "--head-type",
-        choices=["linear", "cnn", "local_attention"],
+        choices=["linear", "cnn", "local_attention", "input_adapter_linear"],
         default="cnn",
         help="Downstream head applied after per-pixel HyperSL embeddings.",
     )
@@ -419,13 +420,23 @@ def main():
             f"Running end-to-end fine-tuning with {effective_head_type} head."
         )
 
+    if args.head_type == "input_adapter_linear":
+        for parameter in model.parameters():
+            parameter.requires_grad = False
+
+        for parameter in model.input_adapter.parameters():
+            parameter.requires_grad = True
+
+        for parameter in model.classifier.parameters():
+            parameter.requires_grad = True
+        
     trainable_params = [param for param in model.parameters() if param.requires_grad]
     total_params = sum(param.numel() for param in model.parameters())
     trainable_count = sum(param.numel() for param in trainable_params)
     print(f"Total parameters: {total_params}")
     print(f"Trainable parameters: {trainable_count}")
 
-    if not freeze_encoder and args.encoder_lr is not None:
+    if not freeze_encoder and args.encoder_lr is not None and args.head_type != "input_adapter_linear":
         encoder_params = [
             param for param in model.spectral_encoder.parameters() if param.requires_grad
         ]
@@ -441,10 +452,40 @@ def main():
             ],
             weight_decay=args.weight_decay,
         )
+    elif args.head_type == "input_adapter_linear":
+        optimizer = torch.optim.AdamW(
+            [
+                {
+                    "params": model.input_adapter.parameters(),
+                    "lr": 1e-3,
+                },
+                {
+                    "params": model.classifier.parameters(),
+                    "lr": 3e-4,
+                },
+            ],
+            weight_decay=1e-4,
+        )
     else:
         optimizer = torch.optim.AdamW(
             trainable_params, lr=args.lr, weight_decay=args.weight_decay
         )
+
+    optimizer_parameter_ids = {
+        id(parameter)
+        for group in optimizer.param_groups
+        for parameter in group["params"]
+    }
+
+    for name, parameter in model.named_parameters():
+        if parameter.requires_grad:
+            included = id(parameter) in optimizer_parameter_ids
+
+            print(
+                f"{name}: "
+                f"shape={tuple(parameter.shape)}, "
+                f"in_optimizer={included}"
+            )
 
     criterion = torch.nn.CrossEntropyLoss()
     scaler = GradScaler(device.type, enabled=use_amp)
@@ -486,18 +527,39 @@ def main():
         print(f"Epoch {epoch}: train_loss={train_loss:.6f} train_acc={train_acc:.4f}")
         epoch_time = time.time() - epoch_start_time
         if wandb_run is not None:
-            wandb_run.log(
-                {
-                    "epoch": epoch,
-                    "train_loss": train_loss,
-                    "train_accuracy": train_acc,
-                    "learning_rate": optimizer.param_groups[0]["lr"],
-                    "epoch_time_seconds": epoch_time,
-                }
-            )
+            if args.head_type == "input_adapter_linear":
+                mix = torch.sigmoid(
+                    model.input_adapter.mix_logit
+                ).item()
+                wandb_run.log(
+                    {
+                        "epoch": epoch,
+                        "train_loss": train_loss,
+                        "train_accuracy": train_acc,
+                        "learning_rate": optimizer.param_groups[0]["lr"],
+                        "epoch_time_seconds": epoch_time,
+                        "neightbor_mix_strength": mix,
+                    }
+                )
+            else:    
+                wandb_run.log(
+                    {
+                        "epoch": epoch,
+                        "train_loss": train_loss,
+                        "train_accuracy": train_acc,
+                        "learning_rate": optimizer.param_groups[0]["lr"],
+                        "epoch_time_seconds": epoch_time,
+                    }
+                )
 
         should_eval = epoch % args.eval_every == 0 or epoch == args.epochs
         if should_eval:
+            if args.head_type == "input_adapter_linear":
+                mix = torch.sigmoid(
+                    model.input_adapter.mix_logit
+                ).item()
+
+                print(f"Learned neighborhood mixing strength: {mix:.4f}")
             metrics = evaluate(
                 model,
                 test_loader,
