@@ -5,17 +5,22 @@ export CUDA_VISIBLE_DEVICES=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-DATASET="${DATASET:-IndianPine}"
+# DATASET="${DATASET:-IndianPine}"
+DATASET="${DATASET:-Pavia}"
 SEED="${SEED:-0}"
 # SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
 # DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/${DATASET}_stratified_80_20_seed${SEED}.mat}"
 # PRETRAIN_DIR="${PRETRAIN_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
 # CHECKPOINT="${CHECKPOINT:-${PRETRAIN_DIR}/embed128_enc8_dec8_heads8_mask80_epoch200.pt}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_checkpoint.pt"
-WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
+# WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
+WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv"
 
-WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-LinearProbeLoc}"
+echo "${WAVELENGTHS_PATH}"
+
+WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighbors-Pavia}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_input_adapter_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
@@ -122,6 +127,7 @@ fi
 
 # LINEAR CLASSIFIER
 # python hypersl_linear_probe.py \
+#   --dataset pavia_center \
 #   --checkpoint "$CHECKPOINT" \
 #   --data-path "$DATA_PATH" \
 #   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -133,7 +139,7 @@ fi
 #   --head-type linear \
 #   --freeze-encoder \
 #   --patch-size 1 \
-#   --epochs 400 \
+#   --epochs 200 \
 #   --eval-every 10 \
 #   --batch-size 4 \
 #   --test-batch-size 16 \
@@ -148,6 +154,7 @@ fi
 
 # linear input adapter + linear probe ------------------
 python hypersl_linear_probe.py \
+  --dataset pavia_center \
   --checkpoint "$CHECKPOINT" \
   --data-path "$DATA_PATH" \
   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -159,11 +166,12 @@ python hypersl_linear_probe.py \
   --head-type input_adapter_linear \
   --freeze-encoder \
   --patch-size 7 \
-  --epochs 400 \
+  --epochs 200 \
   --eval-every 10 \
   --batch-size 4 \
   --test-batch-size 16 \
   --grad-accum-steps 8 \
+  --initial_mix 0.67 \
   --lr 3e-4 \
   --weight-decay 1e-4 \
   --wandb \

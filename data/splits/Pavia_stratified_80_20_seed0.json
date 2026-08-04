@@ -1,0 +1,58 @@
+{
+  "dataset": "Pavia",
+  "source": "/home/lxdcis/hypersl_training/data/Pavia.mat",
+  "split": "/home/lxdcis/hypersl_training/data/splits/Pavia_stratified_80_20_seed0.mat",
+  "train_ratio": 0.8,
+  "seed": 0,
+  "classes": {
+    "1": {
+      "total": 6631,
+      "train": 5305,
+      "test": 1326
+    },
+    "2": {
+      "total": 18649,
+      "train": 14919,
+      "test": 3730
+    },
+    "3": {
+      "total": 2099,
+      "train": 1679,
+      "test": 420
+    },
+    "4": {
+      "total": 3064,
+      "train": 2451,
+      "test": 613
+    },
+    "5": {
+      "total": 1345,
+      "train": 1076,
+      "test": 269
+    },
+    "6": {
+      "total": 5029,
+      "train": 4023,
+      "test": 1006
+    },
+    "7": {
+      "total": 1330,
+      "train": 1064,
+      "test": 266
+    },
+    "8": {
+      "total": 3682,
+      "train": 2946,
+      "test": 736
+    },
+    "9": {
+      "total": 947,
+      "train": 758,
+      "test": 189
+    }
+  },
+  "totals": {
+    "train": 34221,
+    "test": 8555
+  }
+}

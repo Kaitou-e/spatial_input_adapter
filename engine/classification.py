@@ -235,6 +235,7 @@ class ClassificationModel(nn.Module):
         spatial_heads=4,
         spatial_mlp_ratio=4.0,
         spatial_dropout=0.1,
+        initial_mix=0.6,
         *args,
         **kwargs,
     ):
@@ -312,7 +313,7 @@ class ClassificationModel(nn.Module):
         elif self.head_type == "input_adapter_linear":
             self.input_adapter = SharedSpatialInputAdapter(
                 patch_size=patch_size,
-                initial_mix=0.02,
+                initial_mix=initial_mix,
             )
 
             self.classifier = nn.Linear(

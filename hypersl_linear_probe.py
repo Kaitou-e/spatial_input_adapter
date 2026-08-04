@@ -33,6 +33,62 @@ class HyperDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.wave, self.label[idx]
 
+class HyperPatchDataset(Dataset):
+    def __init__(
+        self,
+        data: np.ndarray,
+        label_mask: np.ndarray,
+        wave: np.ndarray,
+        patch_size: int,
+    ) -> None:
+        if patch_size <= 0 or patch_size % 2 == 0:
+            raise ValueError(
+                "patch_size must be a positive odd number."
+            )
+
+        self.patch_size = patch_size
+        self.radius = patch_size // 2
+        self.wave = wave.astype(np.float32)
+
+        self.padded = np.pad(
+            data.astype(np.float32),
+            (
+                (self.radius, self.radius),
+                (self.radius, self.radius),
+                (0, 0),
+            ),
+            mode="reflect",
+        )
+
+        self.coordinates = np.argwhere(
+            label_mask > 0
+        )
+
+        self.labels = (
+            label_mask[
+                self.coordinates[:, 0],
+                self.coordinates[:, 1],
+            ].astype(np.int64)
+            - 1
+        )
+
+    def __len__(self) -> int:
+        return len(self.coordinates)
+
+    def __getitem__(self, index: int):
+        row, column = self.coordinates[index]
+
+        patch = self.padded[
+            row : row + self.patch_size,
+            column : column + self.patch_size,
+            :,
+        ]
+
+        return (
+            patch.astype(np.float32, copy=False),
+            self.wave,
+            self.labels[index],
+        )
 
 def set_seed(seed):
     random.seed(seed)
@@ -83,6 +139,99 @@ def read_indian_pines(data_path, wavelengths_path=None):
     )
     return hsi, train_mask, test_mask, waves, has_real_waves
 
+def normalize_hsi_from_training(
+    hsi: np.ndarray,
+    train_mask: np.ndarray,
+    eps: float = 1e-8,
+) -> np.ndarray:
+    hsi = hsi.astype(np.float32)
+
+    training_spectra = hsi[train_mask > 0]
+
+    if len(training_spectra) == 0:
+        raise ValueError(
+            "Training mask contains no labeled pixels."
+        )
+
+    band_min = training_spectra.min(axis=0)
+    band_max = training_spectra.max(axis=0)
+
+    scale = np.maximum(
+        band_max - band_min,
+        eps,
+    )
+
+    normalized = (
+        hsi
+        - band_min[None, None, :]
+    ) / scale[None, None, :]
+
+    return normalized.astype(np.float32)
+
+
+def read_hsi_dataset(
+    data_path: str,
+    wavelengths_path: str | None,
+    dataset: str,
+):
+    mat = loadmat(data_path)
+
+    required_keys = {"input", "TR", "TE"}
+    missing = required_keys.difference(mat)
+
+    if missing:
+        raise KeyError(
+            f"{data_path} is missing keys: {sorted(missing)}"
+        )
+
+    raw_hsi = mat["input"].astype(np.float32)
+    train_mask = mat["TR"].astype(np.int64)
+    test_mask = mat["TE"].astype(np.int64)
+
+    if raw_hsi.shape[:2] != train_mask.shape:
+        raise ValueError(
+            "HSI and training mask have incompatible shapes."
+        )
+
+    if raw_hsi.shape[:2] != test_mask.shape:
+        raise ValueError(
+            "HSI and test mask have incompatible shapes."
+        )
+
+    overlap = (
+        (train_mask > 0)
+        & (test_mask > 0)
+    )
+
+    if overlap.any():
+        raise ValueError(
+            f"TR and TE overlap at {int(overlap.sum())} centers."
+        )
+
+    hsi = normalize_hsi_from_training(
+        raw_hsi,
+        train_mask,
+    )
+
+    remove_bands = (
+        INDIAN_PINES_REMOVED_BANDS
+        if dataset == "indian_pines"
+        else None
+    )
+
+    wavelengths, has_real_wavelengths = load_wavelengths(
+        wavelengths_path,
+        hsi.shape[-1],
+        remove_bands=remove_bands,
+    )
+
+    return (
+        hsi,
+        train_mask,
+        test_mask,
+        wavelengths,
+        has_real_wavelengths,
+    )
 
 def combine_label_masks(train_mask, test_mask):
     overlap = (train_mask > 0) & (test_mask > 0)
@@ -322,11 +471,21 @@ def build_argparser():
         action="store_true",
         help="Freeze HyperSL while training the selected downstream head.",
     )
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=[
+            "indian_pines",
+            "pavia_u",
+            "pavia_center",
+        ],
+    )
     parser.add_argument("--encoder-lr", type=float, default=None)
     parser.add_argument("--spatial-depth", type=int, default=2)
     parser.add_argument("--spatial-heads", type=int, default=4)
     parser.add_argument("--spatial-mlp-ratio", type=float, default=4.0)
     parser.add_argument("--spatial-dropout", type=float, default=0.1)
+    parser.add_argument("--initial_mix", type=float, default=0.6)
     parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-test-batches", type=int, default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -349,7 +508,14 @@ def main():
         f"grad_accum_steps={args.grad_accum_steps}, amp={use_amp}, checkpointing={args.use_checkpointing}"
     )
 
-    data, train_mask, test_mask, wavelengths, has_real_waves = read_indian_pines(args.data_path, args.wavelengths_path)
+    # data, train_mask, test_mask, wavelengths, has_real_waves = read_indian_pines(args.data_path, args.wavelengths_path)
+    data, train_mask, test_mask, wavelengths, has_real_waves = (
+        read_hsi_dataset(
+            args.data_path,
+            args.wavelengths_path,
+            args.dataset,
+        )
+    )
     if has_real_waves:
         print(f"Loaded {len(wavelengths)} wavelengths from {args.wavelengths_path}.")
     else:
@@ -375,8 +541,53 @@ def main():
         f"Train patches: {x_train.shape}, Test patches: {x_test.shape}, Classes: {class_num}, "
         f"Split: train={len(y_train)} ({train_fraction:.2%}) test={len(y_test)} ({test_fraction:.2%})"
     )
-    train_dataset = HyperDataset(x_train, y_train, wavelengths)
-    test_dataset = HyperDataset(x_test, y_test, wavelengths)
+    # train_dataset = HyperDataset(x_train, y_train, wavelengths)
+    # test_dataset = HyperDataset(x_test, y_test, wavelengths)
+    train_dataset = HyperPatchDataset(
+        data,
+        train_mask,
+        wavelengths,
+        args.patch_size,
+    )
+
+    test_dataset = HyperPatchDataset(
+        data,
+        test_mask,
+        wavelengths,
+        args.patch_size,
+    )
+
+    class_num = int(
+        max(
+            train_mask.max(),
+            test_mask.max(),
+        )
+    )
+
+    total_labeled = (
+        len(train_dataset)
+        + len(test_dataset)
+    )
+
+    train_fraction = (
+        len(train_dataset) / total_labeled
+        if total_labeled
+        else 0.0
+    )
+
+    test_fraction = (
+        len(test_dataset) / total_labeled
+        if total_labeled
+        else 0.0
+    )
+
+    print(
+        f"Cube: {data.shape}, "
+        f"patch={args.patch_size}, "
+        f"train={len(train_dataset)}, "
+        f"test={len(test_dataset)}, "
+        f"classes={class_num}"
+    )
 
     train_loader = DataLoader(train_dataset,batch_size=args.batch_size,shuffle=True,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
     test_loader = DataLoader(test_dataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
@@ -400,6 +611,7 @@ def main():
         spatial_heads=args.spatial_heads,
         spatial_mlp_ratio=args.spatial_mlp_ratio,
         spatial_dropout=args.spatial_dropout,
+        initial_mix=args.initial_mix,
     ).to(device)
 
     if args.checkpoint:
@@ -503,8 +715,8 @@ def main():
             "has_real_wavelengths": has_real_waves,
             "num_bands": int(data.shape[-1]),
             "class_num": int(class_num),
-            "train_samples": int(len(y_train)),
-            "test_samples": int(len(y_test)),
+            "train_samples": int(len(train_dataset)),
+            "test_samples": int(len(test_dataset)),
             "train_fraction": float(train_fraction),
             "test_fraction": float(test_fraction),
             "total_parameters": int(total_params),
