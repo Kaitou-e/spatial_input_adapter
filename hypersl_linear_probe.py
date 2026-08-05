@@ -430,6 +430,8 @@ def start_wandb_run(args, extra_config):
         wandb.define_metric(metric_name, step_metric="epoch")
     return run
 
+    
+
 
 def build_argparser():
     parser = argparse.ArgumentParser(description="Indian Pines classification with HyperSL.")
@@ -614,13 +616,15 @@ def main():
         initial_mix=args.initial_mix,
     ).to(device)
 
+    # print(model.spectral_encoder.)
     if args.checkpoint:
         missing_keys, unexpected_keys = load_pretrained_encoder(model, args.checkpoint)
         print(
             f"Loaded encoder weights from {args.checkpoint}. "
             f"Missing keys: {len(missing_keys)}, Unexpected keys: {len(unexpected_keys)}"
         )
-
+    print(model)
+    exit()
     if freeze_encoder:
         model.freeze_encoder()
         print(

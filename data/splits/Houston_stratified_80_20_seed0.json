@@ -1,0 +1,48 @@
+{
+  "dataset": "Houston",
+  "source": "/home/lxdcis/hypersl_training/data/Houston.mat",
+  "split": "/home/lxdcis/hypersl_training/data/splits/Houston_stratified_80_20_seed0.mat",
+  "train_ratio": 0.8,
+  "seed": 0,
+  "classes": {
+    "1": {
+      "total": 345,
+      "train": 276,
+      "test": 69
+    },
+    "2": {
+      "total": 365,
+      "train": 292,
+      "test": 73
+    },
+    "3": {
+      "total": 365,
+      "train": 292,
+      "test": 73
+    },
+    "4": {
+      "total": 285,
+      "train": 228,
+      "test": 57
+    },
+    "5": {
+      "total": 319,
+      "train": 255,
+      "test": 64
+    },
+    "6": {
+      "total": 408,
+      "train": 326,
+      "test": 82
+    },
+    "7": {
+      "total": 443,
+      "train": 354,
+      "test": 89
+    }
+  },
+  "totals": {
+    "train": 2023,
+    "test": 507
+  }
+}
