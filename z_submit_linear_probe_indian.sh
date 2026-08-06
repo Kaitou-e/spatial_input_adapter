@@ -5,22 +5,23 @@ export CUDA_VISIBLE_DEVICES=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-# DATASET="${DATASET:-IndianPine}"
-DATASET="${DATASET:-Pavia}"
+DATASET="${DATASET:-IndianPine}"
+# DATASET="${DATASET:-Pavia}"
+# DATASET="${DATASET:-Houston}"
 SEED="${SEED:-0}"
-# SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
-# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
-# DATA_PATH="${DATA_PATH:-${SPLIT_DIR}/${DATASET}_stratified_80_20_seed${SEED}.mat}"
-# PRETRAIN_DIR="${PRETRAIN_DIR:-/home/lxdcis/hypersl_training/hypersl/modelarchive/${DATASET,,}_mae_aug}"
-# CHECKPOINT="${CHECKPOINT:-${PRETRAIN_DIR}/embed128_enc8_dec8_heads8_mask80_epoch200.pt}"
+SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2018_blocks30_seed0.mat}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_checkpoint.pt"
-# WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
-WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv"
+WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
+# WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv}"
+# WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
+OUTPUT_PATH="outputs/indian_linear_seed0"
 
-echo "${WAVELENGTHS_PATH}"
+# echo "${WAVELENGTHS_PATH}"
 
-WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighbors-Pavia}"
+WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-Indian}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_input_adapter_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
@@ -125,7 +126,7 @@ fi
 #   --wandb-mode "${WANDB_MODE}" \
 #   "${WANDB_ENTITY_ARGS[@]}"
 
-# LINEAR CLASSIFIER
+# OLD LINEAR CLASSIFIER
 # python hypersl_linear_probe.py \
 #   --dataset pavia_center \
 #   --checkpoint "$CHECKPOINT" \
@@ -152,7 +153,35 @@ fi
 #   --wandb-mode "${WANDB_MODE}" \
 #   "${WANDB_ENTITY_ARGS[@]}"
 
-# linear input adapter + linear probe ------------------
+# OLD ---- linear input adapter + linear probe ------------------
+# python hypersl_linear_probe.py \
+#   --dataset houston \
+#   --checkpoint "$CHECKPOINT" \
+#   --data-path "$DATA_PATH" \
+#   --wavelengths-path "$WAVELENGTHS_PATH" \
+#   --model-size small \
+#   --embedding-dim 256 \
+#   --encoder-depth 8 \
+#   --decoder-depth 4 \
+#   --num-heads 8 \
+#   --head-type input_adapter_linear \
+#   --freeze-encoder \
+#   --patch-size 7 \
+#   --epochs 200 \
+#   --eval-every 10 \
+#   --batch-size 4 \
+#   --test-batch-size 16 \
+#   --grad-accum-steps 8 \
+#   --initial_mix 0.67 \
+#   --lr 3e-4 \
+#   --weight-decay 1e-4 \
+#   --wandb \
+#   --wandb-project "${WANDB_PROJECT}" \
+#   --wandb-run-name "${WANDB_RUN_NAME}" \
+#   --wandb-mode "${WANDB_MODE}" \
+#   "${WANDB_ENTITY_ARGS[@]}"
+
+# new lin classifier
 python hypersl_linear_probe.py \
   --dataset pavia_center \
   --checkpoint "$CHECKPOINT" \
@@ -163,15 +192,17 @@ python hypersl_linear_probe.py \
   --encoder-depth 8 \
   --decoder-depth 4 \
   --num-heads 8 \
-  --head-type input_adapter_linear \
+  --head-type linear \
+  --patch-size 1 \
   --freeze-encoder \
-  --patch-size 7 \
-  --epochs 200 \
+  --epochs 400 \
   --eval-every 10 \
-  --batch-size 4 \
-  --test-batch-size 16 \
-  --grad-accum-steps 8 \
-  --initial_mix 0.67 \
+  --selection-metric oa \
+  --output-dir "$OUTPUT_PATH" \
+  --batch-size 32 \
+  --val-batch-size 128 \
+  --test-batch-size 128 \
+  --grad-accum-steps 1 \
   --lr 3e-4 \
   --weight-decay 1e-4 \
   --wandb \
@@ -179,6 +210,37 @@ python hypersl_linear_probe.py \
   --wandb-run-name "${WANDB_RUN_NAME}" \
   --wandb-mode "${WANDB_MODE}" \
   "${WANDB_ENTITY_ARGS[@]}"
+
+# NEW MIXED NEIGHBORS with proper eval/test
+# python hypersl_linear_probe.py \
+#   --dataset pavia_center \
+#   --checkpoint "$CHECKPOINT" \
+#   --data-path "$DATA_PATH" \
+#   --wavelengths-path "$WAVELENGTHS_PATH" \
+#   --model-size small \
+#   --embedding-dim 256 \
+#   --encoder-depth 8 \
+#   --decoder-depth 4 \
+#   --num-heads 8 \
+#   --head-type input_adapter_linear \
+#   --initial-mix 0.7 \
+#   --freeze-encoder \
+#   --patch-size 7 \
+#   --epochs 200 \
+#   --eval-every 10 \
+#   --selection-metric aa \
+#   --output-dir "$OUTPUT_PATH" \
+#   --batch-size 32 \
+#   --val-batch-size 128 \
+#   --test-batch-size 128 \
+#   --grad-accum-steps 1 \
+#   --lr 3e-4 \
+#   --weight-decay 1e-4 \
+#   --wandb \
+#   --wandb-project "${WANDB_PROJECT}" \
+#   --wandb-run-name "${WANDB_RUN_NAME}" \
+#   --wandb-mode "${WANDB_MODE}" \
+#   "${WANDB_ENTITY_ARGS[@]}"
 
 
 # Original CNN 

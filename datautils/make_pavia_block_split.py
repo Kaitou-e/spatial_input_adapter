@@ -33,6 +33,32 @@ python make_pavia_block_split.py \
   --min-per-class 5 \
   --attempts 10000 \
   --seed 0
+
+python make_pavia_block_split.py \
+  --input ../data/IndianPine.mat \
+  --output ../data/IndianPines_blocks10_seed0.mat \
+  --block-size 10 \
+  --patch-size 7 \
+  --train-ratio 0.70 \
+  --val-ratio 0.15 \
+  --test-ratio 0.15 \
+  --min-per-class 5 \
+  --attempts 50000 \
+  --seed 0
+
+python datautils/make_pavia_block_split.py \
+  --input data/IndianPine.mat \
+  --output data/IndianPines_blocks10_seed0.mat \
+  --block-size 6 \
+  --patch-size 5 \
+  --train-ratio 0.70 \
+  --val-ratio 0.15 \
+  --test-ratio 0.15 \
+  --min-train-per-class 3 \
+  --min-val-per-class 0 \
+  --min-test-per-class 3 \
+  --attempts 100000 \
+  --seed 0
 """
 
 
@@ -62,11 +88,34 @@ def main() -> None:
     parser.add_argument("--test-ratio", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--attempts", type=int, default=500)
+    # parser.add_argument(
+    #     "--min-per-class",
+    #     type=int,
+    #     default=5,
+    #     help="Minimum retained examples of every class in every split.",
+    # )
     parser.add_argument(
-        "--min-per-class",
+        "--min-train-per-class",
         type=int,
         default=5,
-        help="Minimum retained examples of every class in every split.",
+        help="Minimum retained samples of each class in TR.",
+    )
+
+    parser.add_argument(
+        "--min-val-per-class",
+        type=int,
+        default=0,
+        help=(
+            "Minimum retained samples of each class in VA. "
+            "Use 0 for spatially concentrated rare classes."
+        ),
+    )
+
+    parser.add_argument(
+        "--min-test-per-class",
+        type=int,
+        default=5,
+        help="Minimum retained samples of each class in TE.",
     )
 
     args = parser.parse_args()
@@ -213,7 +262,16 @@ def main() -> None:
         )
 
         # Reject candidates that lose a class from any split.
-        if np.any(counts < args.min_per_class):
+        minimum_counts = np.array(
+            [
+                args.min_train_per_class,
+                args.min_val_per_class,
+                args.min_test_per_class,
+            ],
+            dtype=np.int64,
+        )[:, None]
+
+        if np.any(counts < minimum_counts):
             continue
 
         totals = counts.sum(axis=1)

@@ -223,3 +223,4 @@ hypersl_code.zip
 
 10_base_mask95_checkpoint.pt
 *.mat
+outputs/

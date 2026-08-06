@@ -13,6 +13,8 @@ from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import minmax_scale
 from torch.utils.data import DataLoader, Dataset
 from torch.amp import GradScaler, autocast
+import json
+from pathlib import Path
 
 from engine.classification import ClassificationModel
 
@@ -144,14 +146,18 @@ def normalize_hsi_from_training(
     train_mask: np.ndarray,
     eps: float = 1e-8,
 ) -> np.ndarray:
+    """
+    Fit per-band normalization using training pixels only.
+
+    Validation and test pixels must not influence the normalization
+    statistics.
+    """
     hsi = hsi.astype(np.float32)
 
     training_spectra = hsi[train_mask > 0]
 
     if len(training_spectra) == 0:
-        raise ValueError(
-            "Training mask contains no labeled pixels."
-        )
+        raise ValueError("Training mask contains no labeled pixels.")
 
     band_min = training_spectra.min(axis=0)
     band_max = training_spectra.max(axis=0)
@@ -162,8 +168,7 @@ def normalize_hsi_from_training(
     )
 
     normalized = (
-        hsi
-        - band_min[None, None, :]
+        hsi - band_min[None, None, :]
     ) / scale[None, None, :]
 
     return normalized.astype(np.float32)
@@ -176,38 +181,79 @@ def read_hsi_dataset(
 ):
     mat = loadmat(data_path)
 
-    required_keys = {"input", "TR", "TE"}
-    missing = required_keys.difference(mat)
+    required_keys = {
+        "input",
+        "TR",
+        "VA",
+        "TE",
+    }
+
+    missing = required_keys.difference(mat.keys())
 
     if missing:
         raise KeyError(
-            f"{data_path} is missing keys: {sorted(missing)}"
+            f"{data_path} is missing required keys: "
+            f"{sorted(missing)}"
         )
 
-    raw_hsi = mat["input"].astype(np.float32)
-    train_mask = mat["TR"].astype(np.int64)
-    test_mask = mat["TE"].astype(np.int64)
-
-    if raw_hsi.shape[:2] != train_mask.shape:
-        raise ValueError(
-            "HSI and training mask have incompatible shapes."
-        )
-
-    if raw_hsi.shape[:2] != test_mask.shape:
-        raise ValueError(
-            "HSI and test mask have incompatible shapes."
-        )
-
-    overlap = (
-        (train_mask > 0)
-        & (test_mask > 0)
+    raw_hsi = np.asarray(
+        mat["input"],
+        dtype=np.float32,
     )
 
-    if overlap.any():
+    train_mask = np.asarray(
+        mat["TR"],
+        dtype=np.int64,
+    )
+
+    validation_mask = np.asarray(
+        mat["VA"],
+        dtype=np.int64,
+    )
+
+    test_mask = np.asarray(
+        mat["TE"],
+        dtype=np.int64,
+    )
+
+    if raw_hsi.ndim != 3:
         raise ValueError(
-            f"TR and TE overlap at {int(overlap.sum())} centers."
+            f"Expected [H, W, C], got {raw_hsi.shape}."
         )
 
+    for name, mask in (
+        ("TR", train_mask),
+        ("VA", validation_mask),
+        ("TE", test_mask),
+    ):
+        if mask.shape != raw_hsi.shape[:2]:
+            raise ValueError(
+                f"{name} shape {mask.shape} does not match "
+                f"cube shape {raw_hsi.shape[:2]}."
+            )
+
+        if not np.any(mask > 0):
+            raise ValueError(
+                f"{name} contains no labeled pixels."
+            )
+
+    for first_name, first, second_name, second in (
+        ("TR", train_mask, "VA", validation_mask),
+        ("TR", train_mask, "TE", test_mask),
+        ("VA", validation_mask, "TE", test_mask),
+    ):
+        overlap = (
+            (first > 0)
+            & (second > 0)
+        )
+
+        if overlap.any():
+            raise ValueError(
+                f"{first_name} and {second_name} overlap at "
+                f"{int(overlap.sum())} centers."
+            )
+
+    # Only TR determines normalization statistics.
     hsi = normalize_hsi_from_training(
         raw_hsi,
         train_mask,
@@ -228,10 +274,105 @@ def read_hsi_dataset(
     return (
         hsi,
         train_mask,
+        validation_mask,
         test_mask,
         wavelengths,
         has_real_wavelengths,
     )
+
+# def normalize_hsi_from_training(
+#     hsi: np.ndarray,
+#     train_mask: np.ndarray,
+#     eps: float = 1e-8,
+# ) -> np.ndarray:
+#     hsi = hsi.astype(np.float32)
+
+#     training_spectra = hsi[train_mask > 0]
+
+#     if len(training_spectra) == 0:
+#         raise ValueError(
+#             "Training mask contains no labeled pixels."
+#         )
+
+#     band_min = training_spectra.min(axis=0)
+#     band_max = training_spectra.max(axis=0)
+
+#     scale = np.maximum(
+#         band_max - band_min,
+#         eps,
+#     )
+
+#     normalized = (
+#         hsi
+#         - band_min[None, None, :]
+#     ) / scale[None, None, :]
+
+#     return normalized.astype(np.float32)
+
+
+# def read_hsi_dataset(
+#     data_path: str,
+#     wavelengths_path: str | None,
+#     dataset: str,
+# ):
+#     mat = loadmat(data_path)
+
+#     required_keys = {"input", "TR", "TE"}
+#     missing = required_keys.difference(mat)
+
+#     if missing:
+#         raise KeyError(
+#             f"{data_path} is missing keys: {sorted(missing)}"
+#         )
+
+#     raw_hsi = mat["input"].astype(np.float32)
+#     train_mask = mat["TR"].astype(np.int64)
+#     test_mask = mat["TE"].astype(np.int64)
+
+#     if raw_hsi.shape[:2] != train_mask.shape:
+#         raise ValueError(
+#             "HSI and training mask have incompatible shapes."
+#         )
+
+#     if raw_hsi.shape[:2] != test_mask.shape:
+#         raise ValueError(
+#             "HSI and test mask have incompatible shapes."
+#         )
+
+#     overlap = (
+#         (train_mask > 0)
+#         & (test_mask > 0)
+#     )
+
+#     if overlap.any():
+#         raise ValueError(
+#             f"TR and TE overlap at {int(overlap.sum())} centers."
+#         )
+
+#     hsi = normalize_hsi_from_training(
+#         raw_hsi,
+#         train_mask,
+#     )
+
+#     remove_bands = (
+#         INDIAN_PINES_REMOVED_BANDS
+#         if dataset == "indian_pines"
+#         else None
+#     )
+
+#     wavelengths, has_real_wavelengths = load_wavelengths(
+#         wavelengths_path,
+#         hsi.shape[-1],
+#         remove_bands=remove_bands,
+#     )
+
+#     return (
+#         hsi,
+#         train_mask,
+#         test_mask,
+#         wavelengths,
+#         has_real_wavelengths,
+#     )
 
 def combine_label_masks(train_mask, test_mask):
     overlap = (train_mask > 0) & (test_mask > 0)
@@ -346,44 +487,185 @@ def run_epoch(model, loader, optimizer, criterion, device, max_batches=None):
     return mean_loss, accuracy
 
 
-def evaluate(model, loader, device, class_num, max_batches=None):
+# def evaluate(model, loader, device, class_num, max_batches=None):
+#     model.eval()
+#     preds = []
+#     labels = []
+#     use_amp = loader.use_amp
+
+#     with torch.no_grad():
+#         for step, (x, w, y) in enumerate(loader, start=1):
+#             x = x.to(device)
+#             w = w.to(device)
+#             with autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
+#                 logits = model(x, w)
+#             preds.append(logits.argmax(1).cpu().numpy())
+#             labels.append(y.numpy())
+
+#             if max_batches is not None and step >= max_batches:
+#                 break
+
+#     preds = np.concatenate(preds) if preds else np.empty((0,), dtype=np.int64)
+#     labels = np.concatenate(labels) if labels else np.empty((0,), dtype=np.int64)
+
+#     cm = confusion_matrix(labels, preds, labels=np.arange(class_num))
+#     oa = float((preds == labels).mean()) if len(labels) else 0.0
+
+#     per_class_total = cm.sum(axis=1)
+#     per_class_acc = np.divide(
+#         np.diag(cm),
+#         per_class_total,
+#         out=np.zeros_like(per_class_total, dtype=np.float64),
+#         where=per_class_total != 0,
+#     )
+#     aa = float(per_class_acc[per_class_total > 0].mean()) if np.any(per_class_total > 0) else 0.0
+
+#     total = cm.sum()
+#     pe = float((cm.sum(axis=0) * cm.sum(axis=1)).sum() / (total ** 2)) if total else 0.0
+#     kappa = (oa - pe) / (1 - pe) if total and (1 - pe) != 0 else 0.0
+
+#     return {
+#         "oa": oa,
+#         "aa": aa,
+#         "kappa": float(kappa),
+#         "confusion_matrix": cm,
+#     }
+
+def evaluate(
+    model,
+    loader,
+    criterion,
+    device,
+    class_num,
+    max_batches=None,
+):
     model.eval()
-    preds = []
+
+    losses = []
+    predictions = []
     labels = []
+
     use_amp = loader.use_amp
 
     with torch.no_grad():
-        for step, (x, w, y) in enumerate(loader, start=1):
-            x = x.to(device)
-            w = w.to(device)
-            with autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
-                logits = model(x, w)
-            preds.append(logits.argmax(1).cpu().numpy())
-            labels.append(y.numpy())
+        for step, (x, w, y) in enumerate(
+            loader,
+            start=1,
+        ):
+            x = x.to(
+                device,
+                non_blocking=True,
+            )
 
-            if max_batches is not None and step >= max_batches:
+            w = w.to(
+                device,
+                non_blocking=True,
+            )
+
+            y = y.to(
+                device,
+                non_blocking=True,
+            )
+
+            with autocast(
+                device_type=device.type,
+                dtype=torch.float16,
+                enabled=use_amp,
+            ):
+                logits = model(x, w)
+                loss = criterion(logits, y)
+
+            losses.append(loss.item())
+
+            predictions.append(
+                logits.argmax(dim=1).cpu().numpy()
+            )
+
+            labels.append(
+                y.cpu().numpy()
+            )
+
+            if (
+                max_batches is not None
+                and step >= max_batches
+            ):
                 break
 
-    preds = np.concatenate(preds) if preds else np.empty((0,), dtype=np.int64)
-    labels = np.concatenate(labels) if labels else np.empty((0,), dtype=np.int64)
+    predictions = (
+        np.concatenate(predictions)
+        if predictions
+        else np.empty((0,), dtype=np.int64)
+    )
 
-    cm = confusion_matrix(labels, preds, labels=np.arange(class_num))
-    oa = float((preds == labels).mean()) if len(labels) else 0.0
+    labels = (
+        np.concatenate(labels)
+        if labels
+        else np.empty((0,), dtype=np.int64)
+    )
+
+    cm = confusion_matrix(
+        labels,
+        predictions,
+        labels=np.arange(class_num),
+    )
+
+    oa = (
+        float((predictions == labels).mean())
+        if len(labels)
+        else 0.0
+    )
 
     per_class_total = cm.sum(axis=1)
-    per_class_acc = np.divide(
+
+    per_class_accuracy = np.divide(
         np.diag(cm),
         per_class_total,
-        out=np.zeros_like(per_class_total, dtype=np.float64),
+        out=np.zeros_like(
+            per_class_total,
+            dtype=np.float64,
+        ),
         where=per_class_total != 0,
     )
-    aa = float(per_class_acc[per_class_total > 0].mean()) if np.any(per_class_total > 0) else 0.0
+
+    valid_classes = per_class_total > 0
+
+    aa = (
+        float(
+            per_class_accuracy[
+                valid_classes
+            ].mean()
+        )
+        if valid_classes.any()
+        else 0.0
+    )
 
     total = cm.sum()
-    pe = float((cm.sum(axis=0) * cm.sum(axis=1)).sum() / (total ** 2)) if total else 0.0
-    kappa = (oa - pe) / (1 - pe) if total and (1 - pe) != 0 else 0.0
+
+    expected_agreement = (
+        float(
+            (
+                cm.sum(axis=0)
+                * cm.sum(axis=1)
+            ).sum()
+            / (total ** 2)
+        )
+        if total
+        else 0.0
+    )
+
+    kappa = (
+        (oa - expected_agreement)
+        / (1.0 - expected_agreement)
+        if total and expected_agreement != 1.0
+        else 0.0
+    )
 
     return {
+        "loss": (
+            float(np.mean(losses))
+            if losses
+            else 0.0
+        ),
         "oa": oa,
         "aa": aa,
         "kappa": float(kappa),
@@ -418,16 +700,30 @@ def start_wandb_run(args, extra_config):
         config={**vars(args), **extra_config},
     )
     wandb.define_metric("epoch")
+    # for metric_name in (
+    #     "train_loss",
+    #     "train_accuracy",
+    #     "test_oa",
+    #     "test_aa",
+    #     "test_kappa",
+    #     "learning_rate",
+    #     "epoch_time_seconds",
+    # ):
+    #     wandb.define_metric(metric_name, step_metric="epoch")
     for metric_name in (
         "train_loss",
         "train_accuracy",
-        "test_oa",
-        "test_aa",
-        "test_kappa",
+        "val_loss",
+        "val_oa",
+        "val_aa",
+        "val_kappa",
         "learning_rate",
         "epoch_time_seconds",
     ):
-        wandb.define_metric(metric_name, step_metric="epoch")
+        wandb.define_metric(
+            metric_name,
+            step_metric="epoch",
+        )
     return run
 
     
@@ -480,14 +776,42 @@ def build_argparser():
             "indian_pines",
             "pavia_u",
             "pavia_center",
+            "houston",
         ],
+    )
+    parser.add_argument(
+        "--val-batch-size",
+        type=int,
+        default=None,
+        help=(
+            "Validation batch size. Defaults to "
+            "--test-batch-size."
+        ),
+    )
+    parser.add_argument(
+        "--selection-metric",
+        choices=["oa", "aa", "kappa"],
+        default="oa",
+        help=(
+            "Validation metric used to select the best epoch. "
+            "The test set is not used for selection."
+        ),
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        default="outputs/hypersl_run",
+        help=(
+            "Directory for the best checkpoint, results, "
+            "and confusion matrix."
+        ),
     )
     parser.add_argument("--encoder-lr", type=float, default=None)
     parser.add_argument("--spatial-depth", type=int, default=2)
     parser.add_argument("--spatial-heads", type=int, default=4)
     parser.add_argument("--spatial-mlp-ratio", type=float, default=4.0)
     parser.add_argument("--spatial-dropout", type=float, default=0.1)
-    parser.add_argument("--initial_mix", type=float, default=0.6)
+    parser.add_argument("--initial-mix", type=float, default=0.6)
     parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-test-batches", type=int, default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -497,6 +821,80 @@ def build_argparser():
     parser.add_argument("--wandb-mode", "--wandb_mode", dest="wandb_mode", choices=["online", "offline", "disabled"], default="online")
     return parser
 
+def metrics_without_confusion_matrix(
+    metrics: dict,
+) -> dict[str, float]:
+    return {
+        key: float(value)
+        for key, value in metrics.items()
+        if key != "confusion_matrix"
+    }
+
+
+def save_best_checkpoint(
+    path: Path,
+    model,
+    epoch: int,
+    validation_metrics: dict,
+    selection_metric: str,
+    args,
+) -> None:
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    # Store tensors on CPU so the checkpoint is portable.
+    model_state = {
+        name: tensor.detach().cpu()
+        for name, tensor in model.state_dict().items()
+    }
+
+    payload = {
+        "epoch": int(epoch),
+        "model": model_state,
+        "selection_metric": selection_metric,
+        "validation_metrics": (
+            metrics_without_confusion_matrix(
+                validation_metrics
+            )
+        ),
+        "args": vars(args),
+    }
+
+    temporary_path = path.with_suffix(
+        path.suffix + ".tmp"
+    )
+
+    torch.save(
+        payload,
+        temporary_path,
+    )
+
+    temporary_path.replace(path)
+
+
+def load_model_checkpoint(
+    path: Path,
+    model,
+    device,
+) -> dict:
+    checkpoint = torch.load(
+        path,
+        map_location=device,
+    )
+
+    if "model" not in checkpoint:
+        raise KeyError(
+            f"{path} does not contain a 'model' state dictionary."
+        )
+
+    model.load_state_dict(
+        checkpoint["model"],
+        strict=True,
+    )
+
+    return checkpoint
 
 def main():
     args = build_argparser().parse_args()
@@ -511,12 +909,24 @@ def main():
     )
 
     # data, train_mask, test_mask, wavelengths, has_real_waves = read_indian_pines(args.data_path, args.wavelengths_path)
-    data, train_mask, test_mask, wavelengths, has_real_waves = (
-        read_hsi_dataset(
-            args.data_path,
-            args.wavelengths_path,
-            args.dataset,
-        )
+    # data, train_mask, test_mask, wavelengths, has_real_waves = (
+    #     read_hsi_dataset(
+    #         args.data_path,
+    #         args.wavelengths_path,
+    #         args.dataset,
+    #     )
+    # )
+    (
+        data,
+        train_mask,
+        validation_mask,
+        test_mask,
+        wavelengths,
+        has_real_waves,
+    ) = read_hsi_dataset(
+        args.data_path,
+        args.wavelengths_path,
+        args.dataset,
     )
     if has_real_waves:
         print(f"Loaded {len(wavelengths)} wavelengths from {args.wavelengths_path}.")
@@ -545,9 +955,29 @@ def main():
     )
     # train_dataset = HyperDataset(x_train, y_train, wavelengths)
     # test_dataset = HyperDataset(x_test, y_test, wavelengths)
+    # train_dataset = HyperPatchDataset(
+    #     data,
+    #     train_mask,
+    #     wavelengths,
+    #     args.patch_size,
+    # )
+
+    # test_dataset = HyperPatchDataset(
+    #     data,
+    #     test_mask,
+    #     wavelengths,
+    #     args.patch_size,
+    # )
     train_dataset = HyperPatchDataset(
         data,
         train_mask,
+        wavelengths,
+        args.patch_size,
+    )
+
+    validation_dataset = HyperPatchDataset(
+        data,
+        validation_mask,
         wavelengths,
         args.patch_size,
     )
@@ -562,6 +992,7 @@ def main():
     class_num = int(
         max(
             train_mask.max(),
+            validation_mask.max(),
             test_mask.max(),
         )
     )
@@ -591,13 +1022,73 @@ def main():
         f"classes={class_num}"
     )
 
-    train_loader = DataLoader(train_dataset,batch_size=args.batch_size,shuffle=True,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
-    test_loader = DataLoader(test_dataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
+    # train_loader = DataLoader(train_dataset,batch_size=args.batch_size,shuffle=True,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
+    # test_loader = DataLoader(test_dataset,batch_size=args.test_batch_size,shuffle=False,num_workers=args.num_workers,pin_memory=torch.cuda.is_available())
+
+    validation_batch_size = (
+        args.val_batch_size
+        if args.val_batch_size is not None
+        else args.test_batch_size
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+    validation_loader = DataLoader(
+        validation_dataset,
+        batch_size=validation_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.test_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+    use_amp = (
+        device.type == "cuda"
+        and not args.disable_amp
+    )
+
+    scaler = torch.amp.GradScaler(
+        "cuda",
+        enabled=use_amp,
+    )
+
+    train_loader.grad_accum_steps = (
+        args.grad_accum_steps
+    )
+
+    train_loader.use_amp = use_amp
+    train_loader.scaler = scaler
+
+    validation_loader.use_amp = use_amp
+    test_loader.use_amp = use_amp
+
+    print(
+        f"Train samples:      {len(train_dataset)}\n"
+        f"Validation samples: {len(validation_dataset)}\n"
+        f"Test samples:       {len(test_dataset)}\n"
+        f"Classes:            {class_num}"
+    )
 
     effective_head_type = "linear" if args.linear_probe else args.head_type
     freeze_encoder = args.linear_probe or args.freeze_encoder
     if effective_head_type == "local_attention" and args.patch_size == 1:
         raise ValueError("local_attention requires --patch-size greater than 1.")
+
+
+    print(f"AMP enabled: {use_amp}")
 
     model = ClassificationModel(
         class_num=class_num,
@@ -623,8 +1114,8 @@ def main():
             f"Loaded encoder weights from {args.checkpoint}. "
             f"Missing keys: {len(missing_keys)}, Unexpected keys: {len(unexpected_keys)}"
         )
-    print(model)
-    exit()
+    # print(model)
+    # exit()
     if freeze_encoder:
         model.freeze_encoder()
         print(
@@ -730,9 +1221,28 @@ def main():
     best_metrics = None
     best_epoch = 0
 
-    for epoch in range(1, args.epochs + 1):
+    output_dir = Path(args.output_dir)
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    best_checkpoint_path = (
+        output_dir / "best_model.pt"
+    )
+
+    best_validation_score = -float("inf")
+    best_validation_metrics = None
+    best_epoch = None
+
+    for epoch in range(
+        1,
+        args.epochs + 1,
+    ):
         epoch_start_time = time.time()
-        train_loss, train_acc = run_epoch(
+
+        train_loss, train_accuracy = run_epoch(
             model,
             train_loader,
             optimizer,
@@ -740,8 +1250,17 @@ def main():
             device,
             max_batches=args.max_train_batches,
         )
-        print(f"Epoch {epoch}: train_loss={train_loss:.6f} train_acc={train_acc:.4f}")
-        epoch_time = time.time() - epoch_start_time
+
+        epoch_time = (
+            time.time() - epoch_start_time
+        )
+
+        print(
+            f"Epoch {epoch}: "
+            f"train_loss={train_loss:.6f} "
+            f"train_acc={train_accuracy:.4f}"
+        )
+
         if wandb_run is not None:
             if args.head_type == "input_adapter_linear":
                 mix = torch.sigmoid(
@@ -751,62 +1270,279 @@ def main():
                     {
                         "epoch": epoch,
                         "train_loss": train_loss,
-                        "train_accuracy": train_acc,
+                        "train_accuracy": train_accuracy,
                         "learning_rate": optimizer.param_groups[0]["lr"],
                         "epoch_time_seconds": epoch_time,
-                        "neightbor_mix_strength": mix,
+                        "neighbor_mix_strength": mix,
                     }
                 )
-            else:    
+            else:
                 wandb_run.log(
                     {
                         "epoch": epoch,
                         "train_loss": train_loss,
-                        "train_accuracy": train_acc,
-                        "learning_rate": optimizer.param_groups[0]["lr"],
+                        "train_accuracy": train_accuracy,
+                        "learning_rate": (
+                            optimizer.param_groups[0]["lr"]
+                        ),
                         "epoch_time_seconds": epoch_time,
                     }
                 )
 
-        should_eval = epoch % args.eval_every == 0 or epoch == args.epochs
-        if should_eval:
-            if args.head_type == "input_adapter_linear":
-                mix = torch.sigmoid(
-                    model.input_adapter.mix_logit
-                ).item()
+        should_validate = (
+            epoch % args.eval_every == 0
+            or epoch == args.epochs
+        )
 
-                print(f"Learned neighborhood mixing strength: {mix:.4f}")
-            metrics = evaluate(
+        if not should_validate:
+            continue
+
+        validation_metrics = evaluate(
+            model,
+            validation_loader,
+            criterion,
+            device,
+            class_num,
+            max_batches=args.max_test_batches,
+        )
+
+        print(
+            f"Epoch {epoch}: "
+            f"val_loss={validation_metrics['loss']:.6f} "
+            f"val_oa={validation_metrics['oa']:.4f} "
+            f"val_aa={validation_metrics['aa']:.4f} "
+            f"val_kappa={validation_metrics['kappa']:.4f}"
+        )
+
+        validation_score = validation_metrics[
+            args.selection_metric
+        ]
+
+        # Use > rather than >= so ties keep the earlier epoch.
+        if validation_score > best_validation_score:
+            best_validation_score = validation_score
+            best_validation_metrics = validation_metrics
+            best_epoch = epoch
+
+            save_best_checkpoint(
+                best_checkpoint_path,
                 model,
-                test_loader,
-                device,
-                class_num,
-                max_batches=args.max_test_batches,
+                epoch,
+                validation_metrics,
+                args.selection_metric,
+                args,
             )
-            print(
-                f"Epoch {epoch}: test_oa={metrics['oa']:.4f} "
-                f"test_aa={metrics['aa']:.4f} test_kappa={metrics['kappa']:.4f}"
-            )
-            if best_metrics is None or metrics["oa"] >= best_metrics["oa"]:
-                best_metrics = metrics
-                best_epoch = epoch
-            if wandb_run is not None:
-                wandb_run.log(
-                    {
-                        "epoch": epoch,
-                        "test_oa": metrics["oa"],
-                        "test_aa": metrics["aa"],
-                        "test_kappa": metrics["kappa"],
-                    }
-                )
 
+            print(
+                f"Saved new best checkpoint at epoch {epoch}: "
+                f"val_{args.selection_metric}="
+                f"{validation_score:.6f}"
+            )
+
+        if wandb_run is not None:
+            wandb_run.log(
+                {
+                    "epoch": epoch,
+                    "val_loss": validation_metrics["loss"],
+                    "val_oa": validation_metrics["oa"],
+                    "val_aa": validation_metrics["aa"],
+                    "val_kappa": (
+                        validation_metrics["kappa"]
+                    ),
+                }
+            )
+    
+    # for epoch in range(1, args.epochs + 1):
+    #     epoch_start_time = time.time()
+    #     train_loss, train_acc = run_epoch(
+    #         model,
+    #         train_loader,
+    #         optimizer,
+    #         criterion,
+    #         device,
+    #         max_batches=args.max_train_batches,
+    #     )
+    #     print(f"Epoch {epoch}: train_loss={train_loss:.6f} train_acc={train_acc:.4f}")
+    #     epoch_time = time.time() - epoch_start_time
+    #     if wandb_run is not None:
+    #         if args.head_type == "input_adapter_linear":
+    #             mix = torch.sigmoid(
+    #                 model.input_adapter.mix_logit
+    #             ).item()
+    #             wandb_run.log(
+    #                 {
+    #                     "epoch": epoch,
+    #                     "train_loss": train_loss,
+    #                     "train_accuracy": train_acc,
+    #                     "learning_rate": optimizer.param_groups[0]["lr"],
+    #                     "epoch_time_seconds": epoch_time,
+    #                     "neightbor_mix_strength": mix,
+    #                 }
+    #             )
+    #         else:    
+    #             wandb_run.log(
+    #                 {
+    #                     "epoch": epoch,
+    #                     "train_loss": train_loss,
+    #                     "train_accuracy": train_acc,
+    #                     "learning_rate": optimizer.param_groups[0]["lr"],
+    #                     "epoch_time_seconds": epoch_time,
+    #                 }
+    #             )
+
+    #     should_eval = epoch % args.eval_every == 0 or epoch == args.epochs
+    #     if should_eval:
+    #         if args.head_type == "input_adapter_linear":
+    #             mix = torch.sigmoid(
+    #                 model.input_adapter.mix_logit
+    #             ).item()
+
+    #             print(f"Learned neighborhood mixing strength: {mix:.4f}")
+    #         metrics = evaluate(
+    #             model,
+    #             test_loader,
+    #             device,
+    #             class_num,
+    #             max_batches=args.max_test_batches,
+    #         )
+    #         print(
+    #             f"Epoch {epoch}: test_oa={metrics['oa']:.4f} "
+    #             f"test_aa={metrics['aa']:.4f} test_kappa={metrics['kappa']:.4f}"
+    #         )
+    #         if best_metrics is None or metrics["oa"] >= best_metrics["oa"]:
+    #             best_metrics = metrics
+    #             best_epoch = epoch
+    #         if wandb_run is not None:
+    #             wandb_run.log(
+    #                 {
+    #                     "epoch": epoch,
+    #                     "test_oa": metrics["oa"],
+    #                     "test_aa": metrics["aa"],
+    #                     "test_kappa": metrics["kappa"],
+    #                 }
+    #             )
+
+    if best_epoch is None:
+        raise RuntimeError(
+            "No validation checkpoint was saved."
+        )
+
+    best_checkpoint = load_model_checkpoint(
+        best_checkpoint_path,
+        model,
+        device,
+    )
+
+    print(
+        f"\nLoaded best checkpoint from epoch "
+        f"{best_checkpoint['epoch']}."
+    )
+
+    print(
+        "Best validation metrics:",
+        best_checkpoint["validation_metrics"],
+    )
+
+    # Test set is used here for the first and only time.
+    test_metrics = evaluate(
+        model,
+        test_loader,
+        criterion,
+        device,
+        class_num,
+        max_batches=args.max_test_batches,
+    )
+
+    print("\nFinal test results")
+    print(f"  Selected epoch: {best_epoch}")
+    print(f"  Test loss:      {test_metrics['loss']:.6f}")
+    print(f"  Test OA:        {test_metrics['oa']:.6f}")
+    print(f"  Test AA:        {test_metrics['aa']:.6f}")
+    print(f"  Test Kappa:     {test_metrics['kappa']:.6f}")
+
+    results = {
+        "best_epoch": int(best_epoch),
+        "selection_metric": args.selection_metric,
+        "best_validation": (
+            metrics_without_confusion_matrix(
+                best_validation_metrics
+            )
+        ),
+        "test": (
+            metrics_without_confusion_matrix(
+                test_metrics
+            )
+        ),
+        "best_checkpoint": str(
+            best_checkpoint_path
+        ),
+    }
+
+    with open(
+        output_dir / "results.json",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            results,
+            file,
+            indent=2,
+        )
+
+    np.savetxt(
+        output_dir / "test_confusion_matrix.csv",
+        test_metrics["confusion_matrix"],
+        delimiter=",",
+        fmt="%d",
+    )
+
+    # if wandb_run is not None:
+    #     if best_metrics is not None:
+    #         wandb_run.summary["best_epoch"] = int(best_epoch)
+    #         wandb_run.summary["best_test_oa"] = float(best_metrics["oa"])
+    #         wandb_run.summary["best_test_aa"] = float(best_metrics["aa"])
+    #         wandb_run.summary["best_test_kappa"] = float(best_metrics["kappa"])
+    #         wandb_run.summary["confusion_matrix"] = best_metrics["confusion_matrix"].tolist()
+    #     wandb_run.finish()
     if wandb_run is not None:
-        if best_metrics is not None:
-            wandb_run.summary["best_epoch"] = int(best_epoch)
-            wandb_run.summary["best_test_oa"] = float(best_metrics["oa"])
-            wandb_run.summary["best_test_aa"] = float(best_metrics["aa"])
-            wandb_run.summary["best_test_kappa"] = float(best_metrics["kappa"])
-            wandb_run.summary["confusion_matrix"] = best_metrics["confusion_matrix"].tolist()
+        wandb_run.summary["best_epoch"] = int(
+            best_epoch
+        )
+
+        wandb_run.summary[
+            f"best_val_{args.selection_metric}"
+        ] = float(best_validation_score)
+
+        wandb_run.summary["best_val_oa"] = float(
+            best_validation_metrics["oa"]
+        )
+
+        wandb_run.summary["best_val_aa"] = float(
+            best_validation_metrics["aa"]
+        )
+
+        wandb_run.summary["best_val_kappa"] = float(
+            best_validation_metrics["kappa"]
+        )
+
+        wandb_run.summary["test_oa"] = float(
+            test_metrics["oa"]
+        )
+
+        wandb_run.summary["test_aa"] = float(
+            test_metrics["aa"]
+        )
+
+        wandb_run.summary["test_kappa"] = float(
+            test_metrics["kappa"]
+        )
+
+        wandb_run.summary[
+            "test_confusion_matrix"
+        ] = test_metrics[
+            "confusion_matrix"
+        ].tolist()
+
         wandb_run.finish()
 
 
