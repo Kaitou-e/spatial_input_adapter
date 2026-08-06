@@ -23,14 +23,16 @@ python make_pavia_block_split.py \
   --seed 0
 
 python make_pavia_block_split.py \
-  --input ../data/Houston.mat \
-  --output ../data/Houston2018_blocks30_seed0.mat \
+  --input ../data/Houston2013_full.mat \
+  --output ../data/Houston2013_blocks30_seed0.mat \
   --block-size 30 \
   --patch-size 7 \
   --train-ratio 0.70 \
   --val-ratio 0.15 \
   --test-ratio 0.15 \
-  --min-per-class 5 \
+  --min-train-per-class 5 \
+  --min-val-per-class 5 \
+  --min-test-per-class 5 \
   --attempts 10000 \
   --seed 0
 

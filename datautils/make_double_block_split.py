@@ -12,17 +12,39 @@ from scipy.ndimage import binary_erosion
 """
 python datautils/make_double_block_split.py \
   --input data/IndianPine.mat \
-  --output data/IndianPines_patch5_double_split_seed0.mat \
+  --output data/IndianPines_patch5_double_split_8020_seed0.mat \
   --block-size 8 \
   --patch-size 5 \
-  --train-ratio 0.75 \
-  --eval-ratio 0.25 \
+  --train-ratio 0.8 \
+  --eval-ratio 0.2 \
   --min-train-per-class 1 \
   --min-eval-per-class 1 \
-  --attempts 10000 \
+  --attempts 30000 \
   --seed 0
 
+python datautils/make_double_block_split.py \
+  --input data/Houston2013_full.mat \
+  --output data/Houston2013_blocks30_seed0.mat \
+  --block-size 30 \
+  --patch-size 7 \
+  --train-ratio 0.8 \
+  --eval-ratio 0.2 \
+  --min-train-per-class 5 \
+  --min-eval-per-class 5 \
+  --attempts 20000 \
+  --seed 0
 
+python datautils/make_double_block_split.py \
+  --input data/Houston2018_comb_full.mat \
+  --output data/Houston2013_blocks30_seed0.mat \
+  --block-size 30 \
+  --patch-size 7 \
+  --train-ratio 0.8 \
+  --eval-ratio 0.2 \
+  --min-train-per-class 5 \
+  --min-eval-per-class 5 \
+  --attempts 20000 \
+  --seed 0
 """
 
 

@@ -5,24 +5,25 @@ export CUDA_VISIBLE_DEVICES=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-DATASET="${DATASET:-IndianPine}"
+# DATASET="${DATASET:-IndianPine}"
 # DATASET="${DATASET:-Pavia}"
-# DATASET="${DATASET:-Houston}"
+DATASET="${DATASET:-Houston}"
 SEED="${SEED:-0}"
 # SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2018_blocks30_seed0.mat}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/IndianPines_patch5_double_split_seed0.mat}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2013_blocks30_seed0.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/IndianPines_patch5_double_split_8020_seed0.mat}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_checkpoint.pt"
-WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
+# WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv}"
-# WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
-OUTPUT_PATH="outputs/indian_adapter_mix70_seed0"
+WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
+OUTPUT_PATH="outputs/houston13_adapter_seed0"
 
-# echo "${WAVELENGTHS_PATH}"
+# echo "${WAVELENGTHS_PATH}" /home/lxdcis/hypersl_training/data
 
-WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-Indian}"
+WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-Houston13}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_input_adapter_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
@@ -184,7 +185,8 @@ fi
 
 # new lin classifier
 # python hypersl_linear_probe.py \
-#   --dataset indian_pines \
+#   --dataset houston \
+#   --double-split \
 #   --checkpoint "$CHECKPOINT" \
 #   --data-path "$DATA_PATH" \
 #   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -196,7 +198,7 @@ fi
 #   --head-type linear \
 #   --patch-size 1 \
 #   --freeze-encoder \
-#   --epochs 400 \
+#   --epochs 200 \
 #   --eval-every 10 \
 #   --selection-metric oa \
 #   --output-dir "$OUTPUT_PATH" \
@@ -214,7 +216,8 @@ fi
 
 # NEW MIXED NEIGHBORS with proper eval/test
 python hypersl_linear_probe.py \
-  --dataset indian_pines \
+  --dataset houston \
+  --double-split \
   --checkpoint "$CHECKPOINT" \
   --data-path "$DATA_PATH" \
   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -226,8 +229,8 @@ python hypersl_linear_probe.py \
   --head-type input_adapter_linear \
   --initial-mix 0.7 \
   --freeze-encoder \
-  --patch-size 7 \
-  --epochs 400 \
+  --patch-size 5 \
+  --epochs 200 \
   --eval-every 10 \
   --selection-metric oa \
   --output-dir "$OUTPUT_PATH" \

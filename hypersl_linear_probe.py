@@ -178,8 +178,9 @@ def read_hsi_dataset(
     data_path: str,
     wavelengths_path: str | None,
     dataset: str,
+    double_split: bool,
 ):
-    if dataset=="indian_pines":
+    if double_split:
         mat = loadmat(data_path)
         
         required_keys = {
@@ -915,6 +916,7 @@ def build_argparser():
     parser.add_argument("--initial-mix", type=float, default=0.6)
     parser.add_argument("--max-train-batches", type=int, default=None)
     parser.add_argument("--max-test-batches", type=int, default=None)
+    parser.add_argument("--double-split", action="store_true")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--wandb-project", "--wandb_project", dest="wandb_project", default="HyperSL")
     parser.add_argument("--wandb-entity", "--wandb_entity", dest="wandb_entity", default="lxdcis-rochester-institute-of-technology")
@@ -1018,7 +1020,7 @@ def main():
     #     )
     # )
 
-    if args.dataset=="indian_pines":
+    if args.double_split:
         (
             data,
             train_mask,
@@ -1030,6 +1032,7 @@ def main():
             args.data_path,
             args.wavelengths_path,
             args.dataset,
+            args.double_split,
         )
     else:
         (
@@ -1043,6 +1046,7 @@ def main():
             args.data_path,
             args.wavelengths_path,
             args.dataset,
+            args.double_split,
         )
     if has_real_waves:
         print(f"Loaded {len(wavelengths)} wavelengths from {args.wavelengths_path}.")
@@ -1091,7 +1095,7 @@ def main():
         args.patch_size,
     )
 
-    if args.dataset=="indian_pines":
+    if args.double_split:
         validation_dataset = HyperPatchDataset(
             data,
             test_mask,
@@ -1113,7 +1117,7 @@ def main():
         args.patch_size,
     )
 
-    if args.dataset=="indian_pines":
+    if args.double_split:
         class_num = int(
             max(
                 train_mask.max(),
