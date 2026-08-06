@@ -179,6 +179,107 @@ def read_hsi_dataset(
     wavelengths_path: str | None,
     dataset: str,
 ):
+    if dataset=="indian_pines":
+        mat = loadmat(data_path)
+        
+        required_keys = {
+            "input",
+            "TR",
+            "TE",
+        }
+    
+        missing = required_keys.difference(mat.keys())
+    
+        if missing:
+            raise KeyError(
+                f"{data_path} is missing required keys for Indian Pines: "
+                f"{sorted(missing)}"
+            )
+    
+        raw_hsi = np.asarray(
+            mat["input"],
+            dtype=np.float32,
+        )
+    
+        train_mask = np.asarray(
+            mat["TR"],
+            dtype=np.int64,
+        )
+    
+        # validation_mask = np.asarray(
+        #     mat["VA"],
+        #     dtype=np.int64,
+        # )
+    
+        test_mask = np.asarray(
+            mat["TE"],
+            dtype=np.int64,
+        )
+    
+        if raw_hsi.ndim != 3:
+            raise ValueError(
+                f"Expected [H, W, C], got {raw_hsi.shape}."
+            )
+    
+        for name, mask in (
+            ("TR", train_mask),
+            # ("VA", validation_mask),
+            ("TE", test_mask),
+        ):
+            if mask.shape != raw_hsi.shape[:2]:
+                raise ValueError(
+                    f"{name} shape {mask.shape} does not match "
+                    f"cube shape {raw_hsi.shape[:2]}."
+                )
+    
+            if not np.any(mask > 0):
+                raise ValueError(
+                    f"{name} contains no labeled pixels."
+                )
+    
+        for first_name, first, second_name, second in (
+            # ("TR", train_mask, "VA", validation_mask),
+            ("TR", train_mask, "TE", test_mask),
+            # ("VA", validation_mask, "TE", test_mask),
+        ):
+            overlap = (
+                (first > 0)
+                & (second > 0)
+            )
+    
+            if overlap.any():
+                raise ValueError(
+                    f"{first_name} and {second_name} overlap at "
+                    f"{int(overlap.sum())} centers."
+                )
+    
+        # Only TR determines normalization statistics.
+        hsi = normalize_hsi_from_training(
+            raw_hsi,
+            train_mask,
+        )
+    
+        remove_bands = (
+            INDIAN_PINES_REMOVED_BANDS
+            if dataset == "indian_pines"
+            else None
+        )
+    
+        wavelengths, has_real_wavelengths = load_wavelengths(
+            wavelengths_path,
+            hsi.shape[-1],
+            remove_bands=remove_bands,
+        )
+    
+        return (
+            hsi,
+            train_mask,
+            # validation_mask,
+            test_mask,
+            wavelengths,
+            has_real_wavelengths,
+        )
+    
     mat = loadmat(data_path)
 
     required_keys = {
@@ -916,18 +1017,33 @@ def main():
     #         args.dataset,
     #     )
     # )
-    (
-        data,
-        train_mask,
-        validation_mask,
-        test_mask,
-        wavelengths,
-        has_real_waves,
-    ) = read_hsi_dataset(
-        args.data_path,
-        args.wavelengths_path,
-        args.dataset,
-    )
+
+    if args.dataset=="indian_pines":
+        (
+            data,
+            train_mask,
+            # validation_mask,
+            test_mask,
+            wavelengths,
+            has_real_waves,
+        ) = read_hsi_dataset(
+            args.data_path,
+            args.wavelengths_path,
+            args.dataset,
+        )
+    else:
+        (
+            data,
+            train_mask,
+            validation_mask,
+            test_mask,
+            wavelengths,
+            has_real_waves,
+        ) = read_hsi_dataset(
+            args.data_path,
+            args.wavelengths_path,
+            args.dataset,
+        )
     if has_real_waves:
         print(f"Loaded {len(wavelengths)} wavelengths from {args.wavelengths_path}.")
     else:
@@ -975,12 +1091,20 @@ def main():
         args.patch_size,
     )
 
-    validation_dataset = HyperPatchDataset(
-        data,
-        validation_mask,
-        wavelengths,
-        args.patch_size,
-    )
+    if args.dataset=="indian_pines":
+        validation_dataset = HyperPatchDataset(
+            data,
+            test_mask,
+            wavelengths,
+            args.patch_size,
+        )
+    else:
+        validation_dataset = HyperPatchDataset(
+            data,
+            validation_mask,
+            wavelengths,
+            args.patch_size,
+        )
 
     test_dataset = HyperPatchDataset(
         data,
@@ -989,13 +1113,22 @@ def main():
         args.patch_size,
     )
 
-    class_num = int(
-        max(
-            train_mask.max(),
-            validation_mask.max(),
-            test_mask.max(),
+    if args.dataset=="indian_pines":
+        class_num = int(
+            max(
+                train_mask.max(),
+                # validation_mask.max(),
+                test_mask.max(),
+            )
         )
-    )
+    else:
+        class_num = int(
+            max(
+                train_mask.max(),
+                validation_mask.max(),
+                test_mask.max(),
+            )
+        )
 
     total_labeled = (
         len(train_dataset)
