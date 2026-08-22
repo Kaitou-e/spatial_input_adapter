@@ -17,7 +17,7 @@ from engine.model import SpectralSharedEncoder
 import wandb
 
 
-WANDB_KEY = "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"
+WANDB_KEY = "" # was an old key, remember to make new
 
 wandb.login(key = WANDB_KEY)
 

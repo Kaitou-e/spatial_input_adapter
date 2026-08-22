@@ -15,7 +15,7 @@ from engine.model import SpectralSharedEncoder
 from engine.loss import MSE_SAM_loss
 from torch.nn.utils import clip_grad_norm_
 
-WANDB_KEY = "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"
+WANDB_KEY = "" # was an old key, remember to make new
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = REPO_ROOT / 'hypersl_training' / 'data' / 'MultiSourceHSI_test.hdf5'
 # DATASET_PATH = '/home/lxdcis/hypersl_training/data/MultiSourceHSI_test.hdf5'
