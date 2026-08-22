@@ -45,6 +45,18 @@ python datautils/make_double_block_split.py \
   --min-eval-per-class 5 \
   --attempts 20000 \
   --seed 0
+
+python datautils/make_double_block_split.py \
+  --input data/WHU_Hi_HongHu_full.mat \
+  --output data/WHU_Hi_HongHu_patch7_seed0.mat \
+  --block-size 20 \
+  --patch-size 7 \
+  --train-ratio 0.8 \
+  --eval-ratio 0.2 \
+  --min-train-per-class 10 \
+  --min-eval-per-class 10 \
+  --attempts 50000 \
+  --seed 0
 """
 
 
