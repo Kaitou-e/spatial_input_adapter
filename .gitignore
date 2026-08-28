@@ -225,3 +225,5 @@ hypersl_code.zip
 *.mat
 outputs/
 dlhf.py
+data/WashingtonDC/
+.venv_preprocess/

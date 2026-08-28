@@ -10,26 +10,28 @@ cd "${SCRIPT_DIR}"
 # DATASET="${DATASET:-IndianPine}"
 # DATASET="${DATASET:-Pavia}"
 # DATASET="${DATASET:-Houston}"
-DATASET="${DATASET:-WHUHH}"
+DATASET="${DATASET:-DC}"
 SEED="${SEED:-0}"
 # SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2018_blocks30_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2013_blocks30_seed0.mat}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_patch7_seed0.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_patch7_seed0.mat}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/WashingtonDC_patch7_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/IndianPines_patch5_double_split_8020_seed0.mat}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_checkpoint.pt"
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv}"
 # WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
-WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_wavelengths_nm.csv"
-OUTPUT_PATH="outputs/whu_hh_linear_seed0"
+# WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_wavelengths_nm.csv"
+WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/wavelengths_191_bands.csv"
+OUTPUT_PATH="outputs/dc_linear_seed0"
 
 # echo "${WAVELENGTHS_PATH}" /home/lxdcis/hypersl_training/data
 
-WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-WHU-HH}"
-WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_input_adapter_seed${SEED}}"
+WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-DC}"
+WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_linear_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
 
@@ -203,7 +205,7 @@ python hypersl_linear_probe.py \
   --head-type linear \
   --patch-size 1 \
   --freeze-encoder \
-  --epochs 100 \
+  --epochs 200 \
   --eval-every 5 \
   --selection-metric oa \
   --output-dir "$OUTPUT_PATH" \
