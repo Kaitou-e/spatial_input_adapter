@@ -37,6 +37,20 @@ python make_pavia_block_split.py \
   --seed 0
 
 python make_pavia_block_split.py \
+  --input ../data/Houston.mat \
+  --output ../data/Houston2013_lesstrain_blocks30_seed0.mat \
+  --block-size 40 \
+  --patch-size 7 \
+  --train-ratio 0.15 \
+  --val-ratio 0.20 \
+  --test-ratio 0.65 \
+  --min-train-per-class 5 \
+  --min-val-per-class 5 \
+  --min-test-per-class 5 \
+  --attempts 20000 \
+  --seed 0
+
+python make_pavia_block_split.py \
   --input ../data/IndianPine.mat \
   --output ../data/IndianPines_blocks10_seed0.mat \
   --block-size 10 \

@@ -69,6 +69,18 @@ python datautils/make_double_block_split.py \
   --min-eval-per-class 10 \
   --attempts 50000 \
   --seed 0
+
+python datautils/make_double_block_split.py \
+  --input data/WashingtonDC_full.mat \
+  --output data/WashingtonDC_patch7_seed0_train10.mat \
+  --block-size 30 \
+  --patch-size 7 \
+  --train-ratio 0.1 \
+  --eval-ratio 0.9 \
+  --min-train-per-class 10 \
+  --min-eval-per-class 10 \
+  --attempts 50000 \
+  --seed 0
 """
 
 
