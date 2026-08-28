@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=2
 wb_key=$(<wandb/wandb_key.txt)
 export WANDB_API_KEY="$wb_key" 
 
@@ -24,7 +24,7 @@ CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_ch
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv}"
 # WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
 WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_wavelengths_nm.csv"
-OUTPUT_PATH="outputs/whu_hh_linear_seed0"
+OUTPUT_PATH="outputs/whu_hh_adapter_seed0"
 
 # echo "${WAVELENGTHS_PATH}" /home/lxdcis/hypersl_training/data
 
@@ -189,37 +189,6 @@ fi
 #   "${WANDB_ENTITY_ARGS[@]}"
 
 # new lin classifier
-python hypersl_linear_probe.py \
-  --dataset houston \
-  --double-split \
-  --checkpoint "$CHECKPOINT" \
-  --data-path "$DATA_PATH" \
-  --wavelengths-path "$WAVELENGTHS_PATH" \
-  --model-size small \
-  --embedding-dim 256 \
-  --encoder-depth 8 \
-  --decoder-depth 4 \
-  --num-heads 8 \
-  --head-type linear \
-  --patch-size 1 \
-  --freeze-encoder \
-  --epochs 100 \
-  --eval-every 5 \
-  --selection-metric oa \
-  --output-dir "$OUTPUT_PATH" \
-  --batch-size 32 \
-  --val-batch-size 128 \
-  --test-batch-size 128 \
-  --grad-accum-steps 1 \
-  --lr 3e-4 \
-  --weight-decay 1e-4 \
-  --wandb \
-  --wandb-project "${WANDB_PROJECT}" \
-  --wandb-run-name "${WANDB_RUN_NAME}" \
-  --wandb-mode "${WANDB_MODE}" \
-  "${WANDB_ENTITY_ARGS[@]}"
-
-# NEW MIXED NEIGHBORS with proper eval/test
 # python hypersl_linear_probe.py \
 #   --dataset houston \
 #   --double-split \
@@ -231,10 +200,9 @@ python hypersl_linear_probe.py \
 #   --encoder-depth 8 \
 #   --decoder-depth 4 \
 #   --num-heads 8 \
-#   --head-type input_adapter_linear \
-#   --initial-mix 0.7 \
+#   --head-type linear \
+#   --patch-size 1 \
 #   --freeze-encoder \
-#   --patch-size 7 \
 #   --epochs 100 \
 #   --eval-every 5 \
 #   --selection-metric oa \
@@ -250,6 +218,38 @@ python hypersl_linear_probe.py \
 #   --wandb-run-name "${WANDB_RUN_NAME}" \
 #   --wandb-mode "${WANDB_MODE}" \
 #   "${WANDB_ENTITY_ARGS[@]}"
+
+# NEW MIXED NEIGHBORS with proper eval/test
+python hypersl_linear_probe.py \
+  --dataset houston \
+  --double-split \
+  --checkpoint "$CHECKPOINT" \
+  --data-path "$DATA_PATH" \
+  --wavelengths-path "$WAVELENGTHS_PATH" \
+  --model-size small \
+  --embedding-dim 256 \
+  --encoder-depth 8 \
+  --decoder-depth 4 \
+  --num-heads 8 \
+  --head-type input_adapter_linear \
+  --initial-mix 0.7 \
+  --freeze-encoder \
+  --patch-size 7 \
+  --epochs 100 \
+  --eval-every 5 \
+  --selection-metric oa \
+  --output-dir "$OUTPUT_PATH" \
+  --batch-size 32 \
+  --val-batch-size 128 \
+  --test-batch-size 128 \
+  --grad-accum-steps 1 \
+  --lr 3e-4 \
+  --weight-decay 1e-4 \
+  --wandb \
+  --wandb-project "${WANDB_PROJECT}" \
+  --wandb-run-name "${WANDB_RUN_NAME}" \
+  --wandb-mode "${WANDB_MODE}" \
+  "${WANDB_ENTITY_ARGS[@]}"
 
 
 # Original CNN 
