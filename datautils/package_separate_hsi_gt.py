@@ -25,6 +25,13 @@ python datautils/package_separate_hsi_gt.py \
   --gt-file data/WHU_Hi_HongHu_gt.mat \
   --gt-key WHU_Hi_HongHu_gt \
   --output data/WHU_Hi_HongHu_full.mat
+
+python datautils/package_separate_hsi_gt.py \
+  --cube-file data/Botswana/Botswana_data.mat \
+  --cube-key data \
+  --gt-file data/Botswana/Botswana_gt.mat \
+  --gt-key gt \
+  --output data/Botswana/Botswana_full.mat
 """
 
 def read_mat_array(

@@ -81,6 +81,18 @@ python datautils/make_double_block_split.py \
   --min-eval-per-class 10 \
   --attempts 50000 \
   --seed 0
+
+python datautils/make_double_block_split.py \
+  --input /home/lxdcis/hypersl_training/data/Botswana/Botswana_full.mat \
+  --output data/Botswana_block30_train80.mat \
+  --block-size 30 \
+  --patch-size 7 \
+  --train-ratio 0.8 \
+  --eval-ratio 0.2 \
+  --min-train-per-class 20 \
+  --min-eval-per-class 15 \
+  --attempts 50000 \
+  --seed 0
 """
 
 

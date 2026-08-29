@@ -10,28 +10,30 @@ cd "${SCRIPT_DIR}"
 # DATASET="${DATASET:-IndianPine}"
 # DATASET="${DATASET:-Pavia}"
 # DATASET="${DATASET:-Houston}"
-DATASET="${DATASET:-DC}"
+DATASET="${DATASET:-Botswana}"
 SEED="${SEED:-0}"
 # SPLIT_DIR="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/splits}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/${DATASET}.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Pavia_spatial_blocks_seed0.mat}"
-DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2018_lesstrain_blocks40_seed0.mat}"
+# DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2018_lesstrain_blocks40_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Houston2013_blocks30_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_patch7_seed0.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/WashingtonDC_patch7_seed0_train10.mat}"
+DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/Botswana_block30_train80.mat}"
 # DATA_PATH="${SPLIT_DIR:-/home/lxdcis/hypersl_training/data/IndianPines_patch5_double_split_8020_seed0.mat}"
 CHECKPOINT="/home/lxdcis/hypersl_training/hypersl/modelarchive/10_base_mask95_checkpoint.pt"
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/indian_pines_wavelengths_220.csv}"
 # WAVELENGTHS_PATH="${WAVELENGTHS_PATH:-/home/lxdcis/hypersl_training/data/pavia_wavelengths_approx.csv}"
-WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
+# WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/houston2018_wavelengths_approx.csv"
 # WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/WHU_Hi_HongHu_wavelengths_nm.csv"
 # WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/wavelengths_191_bands.csv"
-OUTPUT_PATH="outputs/houston_sia_seed0"
+WAVELENGTHS_PATH="/home/lxdcis/hypersl_training/data/Botswana/botswana_145_wavelengths.csv"
+OUTPUT_PATH="outputs/botswana_sia_seed0"
 
 # echo "${WAVELENGTHS_PATH}" /home/lxdcis/hypersl_training/data
 
-WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-Houston18}"
-WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_linear_seed${SEED}}"
+WANDB_PROJECT="${WANDB_PROJECT:-HyperSL-MixedNeighborsS-Botswana}"
+WANDB_RUN_NAME="${WANDB_RUN_NAME:-hypersl_${DATASET,,}_sia_seed${SEED}}"
 WANDB_MODE="${WANDB_MODE:-online}"
 WANDB_ENTITY_ARGS=()
 
@@ -193,6 +195,7 @@ fi
 # new lin classifier
 # python hypersl_linear_probe.py \
 #   --dataset houston \
+#   --double-split \
 #   --checkpoint "$CHECKPOINT" \
 #   --data-path "$DATA_PATH" \
 #   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -223,6 +226,7 @@ fi
 # NEW MIXED NEIGHBORS with proper eval/test
 python hypersl_linear_probe.py \
   --dataset houston \
+  --double-split \
   --checkpoint "$CHECKPOINT" \
   --data-path "$DATA_PATH" \
   --wavelengths-path "$WAVELENGTHS_PATH" \
@@ -232,7 +236,7 @@ python hypersl_linear_probe.py \
   --decoder-depth 4 \
   --num-heads 8 \
   --head-type input_adapter_linear \
-  --initial-mix 0.3 \
+  --initial-mix 0.7 \
   --freeze-encoder \
   --patch-size 7 \
   --epochs 200 \
