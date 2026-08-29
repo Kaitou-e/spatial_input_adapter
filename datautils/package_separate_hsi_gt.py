@@ -32,6 +32,20 @@ python datautils/package_separate_hsi_gt.py \
   --gt-file data/Botswana/Botswana_gt.mat \
   --gt-key gt \
   --output data/Botswana/Botswana_full.mat
+
+python datautils/package_separate_hsi_gt.py \
+  --cube-file data/Chikusei/Chikusei_data.mat \
+  --cube-key data \
+  --gt-file data/Chikusei/Chikusei_gt.mat \
+  --gt-key gt \
+  --output data/Chikusei/Chikusei_full.mat
+
+python datautils/package_separate_hsi_gt.py \
+  --cube-file data/Salinas/salinas_data.mat \
+  --cube-key data \
+  --gt-file data/Salinas/salinas_gt.mat \
+  --gt-key gt \
+  --output data/Salinas/salinas_full.mat
 """
 
 def read_mat_array(

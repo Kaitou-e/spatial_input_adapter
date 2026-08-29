@@ -93,6 +93,30 @@ python datautils/make_double_block_split.py \
   --min-eval-per-class 15 \
   --attempts 50000 \
   --seed 0
+
+python datautils/make_double_block_split.py \
+    --input /home/lxdcis/hypersl_training/data/Salinas/salinas_full.mat \
+    --output data/Salinas_block20_train80_seed0.mat \
+    --block-size 20 \
+    --patch-size 7 \
+    --train-ratio 0.8 \
+    --eval-ratio 0.2 \
+    --min-train-per-class 50 \
+    --min-eval-per-class 30 \
+    --attempts 50000 \
+    --seed 0
+
+python datautils/make_double_block_split.py \
+    --input /home/lxdcis/hypersl_training/data/Chikusei/Chikusei_full.mat \
+    --output data/Chikusei_block30_train80_seed0.mat \
+    --block-size 20 \
+    --patch-size 7 \
+    --train-ratio 0.8 \
+    --eval-ratio 0.2 \
+    --min-train-per-class 10 \
+    --min-eval-per-class 5 \
+    --attempts 1000 \
+    --seed 0
 """
 
 
