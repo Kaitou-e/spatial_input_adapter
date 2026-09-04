@@ -12,22 +12,24 @@ Standard HyperSL linear probing classifies a target pixel using only its spectra
 
 Given center spectrum $X_{\mathrm{center}}$ and neighboring spectra $X_{i,j}$, SIA computes
 
-$$
+```math
 X_{\mathrm{context}}
 =
 \sum_{(i,j)\neq\mathrm{center}}
 w_{i,j} X_{i,j}
-$$
+```
 
 and produces the adapted spectrum
 
-$$
+```math
 X_{\mathrm{mixed}}
 =
 (1-\alpha)X_{\mathrm{center}}
 +
 \alpha X_{\mathrm{context}}.
-$$
+```
+
+The spatial weights are learned using a softmax over the non-center positions, while $\alpha$ is a learned scalar mixing coefficient.
 
 The spatial weights are learned using a softmax over the non-center positions, while $\alpha$ is a learned scalar mixing coefficient.
 
