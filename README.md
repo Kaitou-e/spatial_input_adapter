@@ -10,26 +10,26 @@ For a `p × p` spatial patch, SIA introduces only `p²` additional trainable par
 
 Standard HyperSL linear probing classifies a target pixel using only its spectral signature. SIA instead operates on a local spatial patch centered on the target pixel.
 
-Given center spectrum \(X_{\mathrm{center}}\) and neighboring spectra \(X_{i,j}\), SIA computes
+Given center spectrum $X_{\mathrm{center}}$ and neighboring spectra $X_{i,j}$, SIA computes
 
-\[
+$$
 X_{\mathrm{context}}
 =
 \sum_{(i,j)\neq\mathrm{center}}
 w_{i,j} X_{i,j}
-\]
+$$
 
 and produces the adapted spectrum
 
-\[
+$$
 X_{\mathrm{mixed}}
 =
 (1-\alpha)X_{\mathrm{center}}
 +
 \alpha X_{\mathrm{context}}.
-\]
+$$
 
-The spatial weights are learned using a softmax over the non-center positions, while \(\alpha\) is a learned scalar mixing coefficient.
+The spatial weights are learned using a softmax over the non-center positions, while $\alpha$ is a learned scalar mixing coefficient.
 
 The resulting spectrum is passed through the frozen HyperSL-Small encoder followed by a trainable linear classifier.
 
